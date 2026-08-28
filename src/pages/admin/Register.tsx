@@ -34,7 +34,7 @@ export default function Register() {
       <header className="bg-slate-900 text-white p-4 shadow-md w-full">
         <div className="max-w-4xl mx-auto flex justify-between items-center">
           <h1 className="text-2xl font-bold text-primary">PadelApp - Área Dueños</h1>
-          <Link to="/admin/login" className="bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-md transition-colors font-medium text-sm">
+          <Link to="/admin" className="bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-md transition-colors font-medium text-sm">
             Iniciar Sesión
           </Link>
         </div>
@@ -47,7 +47,7 @@ export default function Register() {
             Crea tu cuenta
           </h2>
           <p className="mt-2 text-center text-sm text-slate-600">
-            ¿Ya tienes cuenta? <Link to="/admin/login" className="font-medium text-primary hover:text-primary-hover">Ingresa aquí</Link>
+            ¿Ya tienes cuenta? <Link to="/admin" className="font-medium text-primary hover:text-primary-hover">Ingresa aquí</Link>
           </p>
           <div className="mt-4 text-center">
             <Link to="/" className="text-sm font-medium text-slate-500 hover:text-slate-700">

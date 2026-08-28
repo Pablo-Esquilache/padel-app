@@ -11,7 +11,7 @@ import ClubBooking from './pages/public/ClubBooking';
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   if (loading) return <div className="min-h-screen flex items-center justify-center">Cargando sistema...</div>;
-  if (!user) return <Navigate to="/admin/login" />;
+  if (!user) return <Navigate to="/admin" />;
   return <>{children}</>;
 };
 
@@ -23,7 +23,7 @@ function App() {
       <Route path="/reserva/:id" element={<ClubBooking />} />
 
       {/* Rutas de Administrador - Públicas */}
-      <Route path="/admin/login" element={<Login />} />
+      <Route path="/admin" element={<Login />} />
       <Route path="/admin/register" element={<Register />} />
 
       {/* Rutas de Administrador - Privadas */}
