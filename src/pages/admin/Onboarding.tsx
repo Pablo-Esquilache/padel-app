@@ -15,7 +15,7 @@ export default function Onboarding() {
     managerName: '',
     adminPhone: '',
     location: '',
-    openingDays: 'Lunes a Domingo',
+    openingDays: [1,2,3,4,5,6,0] as number[],
     openingHours: '08:00 - 00:00',
     courtsCount: 1,
   });
@@ -42,7 +42,7 @@ export default function Onboarding() {
             manager_name: formData.managerName,
             admin_phone: formData.adminPhone,
             location: formData.location,
-            opening_days: formData.openingDays,
+            opening_days: formData.openingDays.join(','),
             opening_hours: formData.openingHours,
             courts_count: formData.courtsCount,
           }
@@ -161,20 +161,27 @@ export default function Onboarding() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Días de Apertura</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <CalendarDays className="h-5 w-5 text-slate-400" />
-                </div>
-                <input
-                  type="text"
-                  name="openingDays"
-                  required
-                  value={formData.openingDays}
-                  onChange={handleChange}
-                  className="pl-10 block w-full rounded-md border border-slate-300 py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                  placeholder="Ej: Lunes a Domingo"
-                />
+              <label className="block text-sm font-medium text-slate-700 mb-2">Días de Apertura</label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-4 border rounded-md">
+                {[
+                  { id: 1, label: 'Lunes' }, { id: 2, label: 'Martes' }, { id: 3, label: 'Miércoles' },
+                  { id: 4, label: 'Jueves' }, { id: 5, label: 'Viernes' }, { id: 6, label: 'Sábado' }, { id: 0, label: 'Domingo' }
+                ].map(day => (
+                  <label key={day.id} className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="rounded text-primary focus:ring-primary w-4 h-4"
+                      checked={formData.openingDays.includes(day.id)}
+                      onChange={(e) => {
+                        const newDays = e.target.checked 
+                          ? [...formData.openingDays, day.id] 
+                          : formData.openingDays.filter(d => d !== day.id);
+                        setFormData({...formData, openingDays: newDays});
+                      }}
+                    />
+                    <span className="text-sm text-slate-700">{day.label}</span>
+                  </label>
+                ))}
               </div>
             </div>
 

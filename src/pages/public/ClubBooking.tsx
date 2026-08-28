@@ -247,64 +247,81 @@ export default function ClubBooking() {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {activeCourts.map(court => {
-            const slots = getSlotsForCourt(court.id);
+          {club && (() => {
+            const dayOfWeek = new Date(selectedDate + 'T12:00:00').getDay();
+            const openDays = (club.opening_days || '1,2,3,4,5,6,0').split(',').map(Number);
+            
+            if (!openDays.includes(dayOfWeek)) {
+              return (
+                <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center">
+                  <div className="text-4xl mb-2">😴</div>
+                  <h2 className="text-xl font-bold text-slate-800">El complejo está cerrado hoy</h2>
+                  <p className="text-slate-500">Por favor, elige otra fecha en el calendario.</p>
+                </div>
+              );
+            }
+
             return (
-              <div key={court.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-                <div className="bg-slate-100 p-4 border-b border-slate-200 text-center">
-                  <h2 className="font-bold text-slate-800">{court.name}</h2>
-                </div>
-                <div className="p-4 flex flex-col gap-3">
-                  {slots.length === 0 && <p className="text-sm text-slate-500 text-center">Sin horarios.</p>}
-                  
-                  {slots.map((slot, idx) => {
-                    const booking = existingBookings.find(b => b.court_id === court.id && b.start_time.startsWith(slot.start));
-                    
-                    // Bloqueo por horario vencido
-                    const isPast = isToday && currentLocalTime > slot.start;
-                    const isDisabled = slot.isBlocked || isPast;
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {activeCourts.map(court => {
+                  const slots = getSlotsForCourt(court.id);
+                  return (
+                    <div key={court.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                      <div className="bg-slate-100 p-4 border-b border-slate-200 text-center">
+                        <h2 className="font-bold text-slate-800">{court.name}</h2>
+                      </div>
+                      <div className="p-4 flex flex-col gap-3">
+                        {slots.length === 0 && <p className="text-sm text-slate-500 text-center">Sin horarios.</p>}
+                        
+                        {slots.map((slot, idx) => {
+                          const booking = existingBookings.find(b => b.court_id === court.id && b.start_time.startsWith(slot.start));
+                          
+                          // Bloqueo por horario vencido
+                          const isPast = isToday && currentLocalTime > slot.start;
+                          const isDisabled = slot.isBlocked || isPast;
 
-                    if (isDisabled) {
-                      let label = slot.desc || 'Clase';
-                      if (isPast && !slot.isBlocked) label = 'Horario Vencido';
+                          if (isDisabled) {
+                            let label = slot.desc || 'Clase';
+                            if (isPast && !slot.isBlocked) label = 'Horario Vencido';
 
-                      return (
-                        <div key={idx} className="w-full py-3 px-3 rounded-lg border bg-slate-200 border-slate-300 flex justify-between items-center opacity-70">
-                          <div className="text-left">
-                            <p className="font-bold text-slate-700 text-lg">{slot.start}</p>
-                            <p className="text-xs text-slate-500">a {slot.end}</p>
-                          </div>
-                          <span className="text-sm font-medium text-slate-600 truncate max-w-[100px]">{label}</span>
-                        </div>
-                      );
-                    }
+                            return (
+                              <div key={idx} className="w-full py-3 px-3 rounded-lg border bg-slate-200 border-slate-300 flex justify-between items-center opacity-70">
+                                <div className="text-left">
+                                  <p className="font-bold text-slate-700 text-lg">{slot.start}</p>
+                                  <p className="text-xs text-slate-500">a {slot.end}</p>
+                                </div>
+                                <span className="text-sm font-medium text-slate-600 truncate max-w-[100px]">{label}</span>
+                              </div>
+                            );
+                          }
 
-                    return (
-                      <button
-                        key={idx}
-                        onClick={() => handleSlotClick(court, slot)}
-                        className={`w-full py-3 px-3 rounded-lg border transition-all flex justify-between items-center ${
-                          booking 
-                            ? 'bg-red-50 border-red-200 hover:bg-red-100'
-                            : 'bg-white border-primary/30 hover:border-primary hover:bg-primary/5 hover:shadow-sm'
-                        }`}
-                      >
-                        <div className="text-left">
-                          <p className={`font-bold text-lg ${booking ? 'text-red-800' : 'text-slate-800'}`}>{slot.start}</p>
-                          <p className={`text-xs ${booking ? 'text-red-500' : 'text-slate-500'}`}>a {slot.end}</p>
-                        </div>
-                        <span className={`text-sm font-medium ${booking ? 'text-red-600' : 'text-primary'}`}>
-                          {booking ? 'Ocupado' : 'Libre'}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => handleSlotClick(court, slot)}
+                              className={`w-full py-3 px-3 rounded-lg border transition-all flex justify-between items-center ${
+                                booking 
+                                  ? 'bg-red-50 border-red-200 hover:bg-red-100'
+                                  : 'bg-white border-primary/30 hover:border-primary hover:bg-primary/5 hover:shadow-sm'
+                              }`}
+                            >
+                              <div className="text-left">
+                                <p className={`font-bold text-lg ${booking ? 'text-red-800' : 'text-slate-800'}`}>{slot.start}</p>
+                                <p className={`text-xs ${booking ? 'text-red-500' : 'text-slate-500'}`}>a {slot.end}</p>
+                              </div>
+                              <span className={`text-sm font-medium ${booking ? 'text-red-600' : 'text-primary'}`}>
+                                {booking ? 'Ocupado' : 'Libre'}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             );
-          })}
-        </div>
+          })()}
         </main>
       </div>
 

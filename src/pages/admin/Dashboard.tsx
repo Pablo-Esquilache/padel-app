@@ -316,7 +316,31 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Días de Apertura</label>
-                  <input type="text" className="w-full border rounded-md p-2 focus:border-primary outline-none" value={club.opening_days || ''} onChange={e => setClub({...club, opening_days: e.target.value})} />
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-4 border rounded-md">
+                    {[
+                      { id: 1, label: 'Lunes' }, { id: 2, label: 'Martes' }, { id: 3, label: 'Miércoles' },
+                      { id: 4, label: 'Jueves' }, { id: 5, label: 'Viernes' }, { id: 6, label: 'Sábado' }, { id: 0, label: 'Domingo' }
+                    ].map(day => {
+                      const selectedDays = (club.opening_days || '').split(',').map(Number);
+                      const isChecked = selectedDays.includes(day.id);
+                      return (
+                        <label key={day.id} className="flex items-center gap-2 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="rounded text-primary focus:ring-primary w-4 h-4"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const newDays = e.target.checked 
+                                ? [...selectedDays, day.id] 
+                                : selectedDays.filter(d => d !== day.id);
+                              setClub({...club, opening_days: newDays.join(',')});
+                            }}
+                          />
+                          <span className="text-sm text-slate-700">{day.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Horario de Apertura y Cierre (Ej: 08:00 - 00:00)</label>

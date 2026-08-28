@@ -18,14 +18,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
-      <header className="bg-slate-900 text-white p-4 shadow-md">
-        <div className="max-w-4xl mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-primary">PadelApp</h1>
-          <Link to="/admin/login" className="bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-md transition-colors font-medium text-sm">
-            Soy Administrador
-          </Link>
-        </div>
-      </header>
+
 
       <main className="flex-1 flex flex-col items-center p-4 py-12 text-center">
         <div className="max-w-md w-full">
