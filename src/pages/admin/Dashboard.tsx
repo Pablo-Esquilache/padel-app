@@ -332,7 +332,7 @@ export default function Dashboard() {
                             onChange={(e) => {
                               const newDays = e.target.checked 
                                 ? [...selectedDays, day.id] 
-                                : selectedDays.filter(d => d !== day.id);
+                                : selectedDays.filter((d: number) => d !== day.id);
                               setClub({...club, opening_days: newDays.join(',')});
                             }}
                           />

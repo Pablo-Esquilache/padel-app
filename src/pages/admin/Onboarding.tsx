@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { MapPin, User, Building2, Clock, CalendarDays, Phone } from 'lucide-react';
+import { MapPin, User, Building2, Clock, Phone } from 'lucide-react';
 
 export default function Onboarding() {
   const { user } = useAuth();
