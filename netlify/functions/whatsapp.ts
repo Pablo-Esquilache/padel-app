@@ -28,8 +28,10 @@ export const handler: Handler = async (event) => {
 
   // 2. Recepción de mensajes de WhatsApp (Petición POST)
   if (event.httpMethod === 'POST') {
+    console.log('🔥 WEBHOOK RECIBIDO EN NETLIFY!');
     try {
       const bodyParams = JSON.parse(event.body || '{}');
+      console.log('Cuerpo del mensaje:', JSON.stringify(bodyParams, null, 2));
       
       // Validar que sea un mensaje de WhatsApp
       if (bodyParams.object !== 'whatsapp_business_account') {
