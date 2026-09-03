@@ -113,7 +113,7 @@ export const handler: Handler = async (event) => {
 
       // E. Enviar la respuesta de vuelta al cliente vía Meta Cloud API
       const metaUrl = `https://graph.facebook.com/v19.0/${META_PHONE_ID}/messages`;
-      await fetch(metaUrl, {
+      const metaResponse = await fetch(metaUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${META_TOKEN}`,
@@ -126,6 +126,13 @@ export const handler: Handler = async (event) => {
           text: { body: responseText }
         })
       });
+
+      if (!metaResponse.ok) {
+        const errorText = await metaResponse.text();
+        console.error('🔥 ERROR DE FACEBOOK AL RESPONDER:', errorText);
+      } else {
+        console.log('✅ RESPUESTA ENVIADA A FACEBOOK CON ÉXITO');
+      }
 
       return { statusCode: 200, body: 'EVENT_RECEIVED' };
     } catch (error) {
