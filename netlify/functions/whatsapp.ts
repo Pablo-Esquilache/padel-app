@@ -80,23 +80,24 @@ export const handler: Handler = async (event) => {
       - NUNCA digas "Hola", "Buenas" o saludes a menos que sea evidente que es el primer mensaje del cliente.
       
       REGLAS DE DISPONIBILIDAD Y CANCHAS:
-      - ESTA ES LA BASE DE DATOS REAL (Consúltala obligatoriamente):
+      - ESTA ES LA BASE DE DATOS REAL:
         * Canchas existentes: ${JSON.stringify(courts)}
-        * Turnos ya OCUPADOS (reservados) a partir de hoy: ${JSON.stringify(bookings)}
-      - Si hay lugar, especifícale SIEMPRE qué cancha le ofreces.
-      - Si el turno que pide está OCUPADO, dile que no, Y LÍSTALE TODOS los horarios disponibles para ese día.
+        * Turnos ya OCUPADOS a partir de hoy: ${JSON.stringify(bookings)}
+      - ¡ATENCIÓN! NUNCA le digas al cliente el "id" de la cancha (que es un código larguísimo). Al hablar con el cliente llámalas SOLO por su nombre (ej: "Cancha 1" o "Cancha 2"). El "id" úsalo ÚNICAMENTE para escribir el código secreto al final.
+      - Si te piden horarios disponibles, DEBES listarlos claramente agrupados por cancha. Ejemplo:
+        Cancha 1: 08:00, 11:00...
+        Cancha 2: 09:30, 18:00...
       
       Hoy es: ${today}.
       
       REGLA ESTRICTA DE RESERVA (¡MUUY IMPORTANTE!): 
-      Para agendar, OBLIGATORIAMENTE necesitas: Día, Hora, Nombre del cliente y Tipo de partido (Masculino, Femenino o Mixto).
-      PASO 1: Si faltan datos, PÍDESELOS ("¿A qué nombre lo anoto y es masculino, femenino o mixto?"). NO RESERVES TODAVÍA.
-      PASO 2: Solo cuando tengas TODOS los datos y haya lugar, tu respuesta DEBE contener al final este código secreto exacto: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM|Nombre Del Cliente|Tipo].
+      Para agendar, OBLIGATORIAMENTE necesitas 5 cosas: Día, Hora, Nombre, Número de Teléfono y Tipo de partido (Masculino, Femenino o Mixto).
+      PASO 1: Si faltan datos, PÍDESELOS ("¿Me pasas un nombre, teléfono y si es masculino, femenino o mixto?"). NO RESERVES TODAVÍA.
+      PASO 2: Solo cuando tengas TODOS los datos y haya lugar, tu respuesta DEBE contener al final este código secreto exacto: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM|Nombre|Tipo|Telefono].
       
-      REGLA ESTRICTA DE CANCELACIÓN (NUEVO):
-      Si el cliente quiere cancelar un turno, pregúntale para qué día, a qué hora lo tenía y a nombre de quién está.
-      Una vez que te confirme esos datos, tu respuesta DEBE contener al final este código secreto exacto: [CANCELAR|YYYY-MM-DD|HH:MM|Nombre].
-      Ejemplo: "¡Listo Pablo! Turno cancelado. [CANCELAR|2026-08-30|18:00|Pablo]".
+      REGLA ESTRICTA DE CANCELACIÓN:
+      Si el cliente quiere cancelar, pregúntale: Día, Hora, Nombre y Número de Teléfono con el que reservó.
+      Solo cuando te confirme todos los datos, tu respuesta DEBE contener al final este código secreto exacto: [CANCELAR|YYYY-MM-DD|HH:MM|Nombre|Telefono].
 
       Mensaje del cliente: "${messageText}"
       `;
@@ -107,9 +108,9 @@ export const handler: Handler = async (event) => {
       let responseText = result.response.text();
 
       // D. Leer si la IA decidió hacer una reserva
-      const reserveMatch = responseText.match(/\[RESERVAR\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
+      const reserveMatch = responseText.match(/\[RESERVAR\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
       if (reserveMatch) {
-        const [_, court_id, date, time, customer_name, match_type] = reserveMatch;
+        const [_, court_id, date, time, customer_name, match_type, customer_phone] = reserveMatch;
         responseText = responseText.replace(/\[RESERVAR.*\]/, '').trim(); // Ocultar código
         
         const cancellationCode = Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -120,7 +121,7 @@ export const handler: Handler = async (event) => {
           start_time: time,
           end_time: time, // Simplificado
           customer_name: customer_name.trim(),
-          customer_phone: fromPhone,
+          customer_phone: customer_phone.trim(),
           match_type: match_type.trim(),
           cancellation_code: cancellationCode,
           status: 'confirmed'
@@ -133,9 +134,9 @@ export const handler: Handler = async (event) => {
       }
 
       // E. Leer si la IA decidió CANCELAR un turno
-      const cancelMatch = responseText.match(/\[CANCELAR\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
+      const cancelMatch = responseText.match(/\[CANCELAR\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
       if (cancelMatch) {
-        const [_, date, time, customer_name] = cancelMatch;
+        const [_, date, time, customer_name, customer_phone] = cancelMatch;
         responseText = responseText.replace(/\[CANCELAR.*\]/, '').trim();
         
         const { error } = await supabase
@@ -144,6 +145,7 @@ export const handler: Handler = async (event) => {
           .eq('booking_date', date)
           .eq('start_time', time)
           .ilike('customer_name', `%${customer_name.trim()}%`)
+          .eq('customer_phone', customer_phone.trim())
           .eq('status', 'confirmed');
           
         if (error) {
