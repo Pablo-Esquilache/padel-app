@@ -77,25 +77,26 @@ export const handler: Handler = async (event) => {
       
       REGLAS DE PERSONALIDAD Y SALUDOS:
       - Sé amable, directo y responde MUY corto.
-      - NUNCA digas "Hola", "Buenas" o saludes a menos que sea evidente que es el primer mensaje del cliente. Si ya están conversando, ve directo al grano.
+      - NUNCA digas "Hola", "Buenas" o saludes a menos que sea evidente que es el primer mensaje del cliente.
       
       REGLAS DE DISPONIBILIDAD Y CANCHAS:
-      - El complejo abre de 08:00 a 23:00.
       - ESTA ES LA BASE DE DATOS REAL (Consúltala obligatoriamente):
         * Canchas existentes: ${JSON.stringify(courts)}
         * Turnos ya OCUPADOS (reservados) a partir de hoy: ${JSON.stringify(bookings)}
-      - Si hay lugar, especifícale SIEMPRE qué cancha le ofreces (usa el nombre real de la base de datos).
-      - Si el turno que pide está OCUPADO en ambas canchas, dile directamente que no (sin dar vueltas), Y LÍSTALE TODOS los horarios que sí te quedan disponibles para ese día, para que elija.
-      - Si pregunta qué turnos tienes, lístale la disponibilidad total del día.
+      - Si hay lugar, especifícale SIEMPRE qué cancha le ofreces.
+      - Si el turno que pide está OCUPADO, dile que no, Y LÍSTALE TODOS los horarios disponibles para ese día.
       
       Hoy es: ${today}.
       
       REGLA ESTRICTA DE RESERVA (¡MUUY IMPORTANTE!): 
-      Para poder agendar un turno, OBLIGATORIAMENTE necesitas saber 4 cosas: Día, Hora, Nombre del cliente y Tipo de partido (Masculino, Femenino o Mixto).
-      PASO 1: Si te pide un turno pero falta su nombre o el tipo de partido, PÍDESELOS ("¿A qué nombre lo anoto y es masculino, femenino o mixto?"). NO RESERVES TODAVÍA.
+      Para agendar, OBLIGATORIAMENTE necesitas: Día, Hora, Nombre del cliente y Tipo de partido (Masculino, Femenino o Mixto).
+      PASO 1: Si faltan datos, PÍDESELOS ("¿A qué nombre lo anoto y es masculino, femenino o mixto?"). NO RESERVES TODAVÍA.
       PASO 2: Solo cuando tengas TODOS los datos y haya lugar, tu respuesta DEBE contener al final este código secreto exacto: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM|Nombre Del Cliente|Tipo].
-      Ejemplo: "¡Perfecto Pablo! Te dejé anotado a las 18:00 en la Cancha 1. [RESERVAR|1234-uuid|2026-08-30|18:00|Pablo|Masculino]".
-      Elige el ID de la cancha que NO esté ocupada en ese horario.
+      
+      REGLA ESTRICTA DE CANCELACIÓN (NUEVO):
+      Si el cliente quiere cancelar un turno, pregúntale para qué día, a qué hora lo tenía y a nombre de quién está.
+      Una vez que te confirme esos datos, tu respuesta DEBE contener al final este código secreto exacto: [CANCELAR|YYYY-MM-DD|HH:MM|Nombre].
+      Ejemplo: "¡Listo Pablo! Turno cancelado. [CANCELAR|2026-08-30|18:00|Pablo]".
 
       Mensaje del cliente: "${messageText}"
       `;
@@ -106,11 +107,10 @@ export const handler: Handler = async (event) => {
       let responseText = result.response.text();
 
       // D. Leer si la IA decidió hacer una reserva
-      // Formato: [RESERVAR|court_id|date|time|name|match_type]
       const reserveMatch = responseText.match(/\[RESERVAR\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
       if (reserveMatch) {
         const [_, court_id, date, time, customer_name, match_type] = reserveMatch;
-        responseText = responseText.replace(/\[RESERVAR.*\]/, '').trim(); // Ocultar código al cliente
+        responseText = responseText.replace(/\[RESERVAR.*\]/, '').trim(); // Ocultar código
         
         const cancellationCode = Math.random().toString(36).substring(2, 10).toUpperCase();
 
@@ -127,12 +127,32 @@ export const handler: Handler = async (event) => {
         }]);
 
         if (error) {
-          console.error('Error DB:', error);
-          responseText = "Ups, hubo un choque en la base de datos y no pude guardar el turno. ¿Podemos intentar con otro horario?";
+          console.error('Error DB Reserva:', error);
+          responseText = "Ups, hubo un choque en la base de datos y no pude guardar el turno.";
         }
       }
 
-      // E. Enviar la respuesta de vuelta al cliente vía Meta Cloud API
+      // E. Leer si la IA decidió CANCELAR un turno
+      const cancelMatch = responseText.match(/\[CANCELAR\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
+      if (cancelMatch) {
+        const [_, date, time, customer_name] = cancelMatch;
+        responseText = responseText.replace(/\[CANCELAR.*\]/, '').trim();
+        
+        const { error } = await supabase
+          .from('bookings')
+          .update({ status: 'cancelled' })
+          .eq('booking_date', date)
+          .eq('start_time', time)
+          .ilike('customer_name', `%${customer_name.trim()}%`)
+          .eq('status', 'confirmed');
+          
+        if (error) {
+           console.error('Error DB Cancelar:', error);
+           responseText = "Ups, hubo un problema y no pude cancelar el turno. Contacta al club.";
+        }
+      }
+
+      // F. Enviar la respuesta de vuelta al cliente vía Meta Cloud API
       const metaUrl = `https://graph.facebook.com/v19.0/${META_PHONE_ID}/messages`;
       
       const sendToMeta = async (phone: string) => {
