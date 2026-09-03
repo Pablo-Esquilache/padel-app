@@ -84,17 +84,18 @@ export const handler: Handler = async (event) => {
       - ESTA ES LA BASE DE DATOS REAL (Consúltala obligatoriamente):
         * Canchas existentes: ${JSON.stringify(courts)}
         * Turnos ya OCUPADOS (reservados) a partir de hoy: ${JSON.stringify(bookings)}
-      - Si hay lugar, especifícale SIEMPRE qué cancha le ofreces (usa el nombre real: Cancha de Cemento o Cancha de blindex).
-      - Si el turno que pide está OCUPADO en ambas canchas, dile directamente que no se puede, Y LÍSTALE TODOS los horarios que sí te quedan disponibles para ese día, para que elija.
+      - Si hay lugar, especifícale SIEMPRE qué cancha le ofreces (usa el nombre real de la base de datos).
+      - Si el turno que pide está OCUPADO en ambas canchas, dile directamente que no (sin dar vueltas), Y LÍSTALE TODOS los horarios que sí te quedan disponibles para ese día, para que elija.
       - Si pregunta qué turnos tienes, lístale la disponibilidad total del día.
       
       Hoy es: ${today}.
       
-      REGLA ESTRICTA DE RESERVA: 
-      Solo cuando el cliente te confirme EXACTAMENTE el día y la hora que quiere reservar, 
-      y hayas verificado que esa cancha está libre a esa hora, tu respuesta DEBE contener al final este código secreto exacto: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM].
-      Ejemplo: "¡Perfecto! Te dejé anotado a las 18:00 en la Cancha de blindex. [RESERVAR|1234-uuid|2026-08-30|18:00]".
-      Elige el ID de la cancha (cemento o blindex) que NO esté en la lista de ocupadas para ese horario.
+      REGLA ESTRICTA DE RESERVA (¡MUUY IMPORTANTE!): 
+      Para poder agendar un turno, OBLIGATORIAMENTE necesitas saber 4 cosas: Día, Hora, Nombre del cliente y Tipo de partido (Masculino, Femenino o Mixto).
+      PASO 1: Si te pide un turno pero falta su nombre o el tipo de partido, PÍDESELOS ("¿A qué nombre lo anoto y es masculino, femenino o mixto?"). NO RESERVES TODAVÍA.
+      PASO 2: Solo cuando tengas TODOS los datos y haya lugar, tu respuesta DEBE contener al final este código secreto exacto: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM|Nombre Del Cliente|Tipo].
+      Ejemplo: "¡Perfecto Pablo! Te dejé anotado a las 18:00 en la Cancha 1. [RESERVAR|1234-uuid|2026-08-30|18:00|Pablo|Masculino]".
+      Elige el ID de la cancha que NO esté ocupada en ese horario.
 
       Mensaje del cliente: "${messageText}"
       `;
@@ -105,9 +106,10 @@ export const handler: Handler = async (event) => {
       let responseText = result.response.text();
 
       // D. Leer si la IA decidió hacer una reserva
-      const reserveMatch = responseText.match(/\[RESERVAR\|([^\|]+)\|([^\|]+)\|([^\]]+)\]/);
+      // Formato: [RESERVAR|court_id|date|time|name|match_type]
+      const reserveMatch = responseText.match(/\[RESERVAR\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
       if (reserveMatch) {
-        const [_, court_id, date, time] = reserveMatch;
+        const [_, court_id, date, time, customer_name, match_type] = reserveMatch;
         responseText = responseText.replace(/\[RESERVAR.*\]/, '').trim(); // Ocultar código al cliente
         
         const cancellationCode = Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -117,9 +119,9 @@ export const handler: Handler = async (event) => {
           booking_date: date,
           start_time: time,
           end_time: time, // Simplificado
-          customer_name: 'Cliente IA',
+          customer_name: customer_name.trim(),
           customer_phone: fromPhone,
-          match_type: 'Masculino',
+          match_type: match_type.trim(),
           cancellation_code: cancellationCode,
           status: 'confirmed'
         }]);
