@@ -113,23 +113,41 @@ export const handler: Handler = async (event) => {
 
       // E. Enviar la respuesta de vuelta al cliente vía Meta Cloud API
       const metaUrl = `https://graph.facebook.com/v19.0/${META_PHONE_ID}/messages`;
-      const metaResponse = await fetch(metaUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${META_TOKEN}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: fromPhone,
-          type: 'text',
-          text: { body: responseText }
-        })
-      });
+      
+      const sendToMeta = async (phone: string) => {
+        return fetch(metaUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${META_TOKEN}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: phone,
+            type: 'text',
+            text: { body: responseText }
+          })
+        });
+      };
+
+      let metaResponse = await sendToMeta(fromPhone);
 
       if (!metaResponse.ok) {
-        const errorText = await metaResponse.text();
+        let errorText = await metaResponse.text();
         console.error('🔥 ERROR DE FACEBOOK AL RESPONDER:', errorText);
+        
+        // Magia para Argentina: Si falla por el '9' fantasma, reintentar sin el '9'
+        if (errorText.includes('131030') && fromPhone.startsWith('549')) {
+          console.log('🇦🇷 Detectado número de Argentina. Reintentando sin el 9...');
+          const phoneWithout9 = fromPhone.replace(/^549/, '54');
+          metaResponse = await sendToMeta(phoneWithout9);
+          
+          if (!metaResponse.ok) {
+            console.error('🔥 ERROR EN REINTENTO SIN EL 9:', await metaResponse.text());
+          } else {
+            console.log('✅ REINTENTO SIN EL 9 FUE UN ÉXITO');
+          }
+        }
       } else {
         console.log('✅ RESPUESTA ENVIADA A FACEBOOK CON ÉXITO');
       }
