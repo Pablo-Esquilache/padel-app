@@ -59,8 +59,17 @@ export const handler: Handler = async (event) => {
 
       // --- EMPIEZA LA MAGIA DE LA IA ---
 
-      // A. Obtener canchas activas para la IA
+      // A. Obtener canchas activas y reservas futuras para la IA
       const { data: courts } = await supabase.from('courts').select('id, name').eq('is_active', true);
+      
+      // Obtener fecha actual en hora de Argentina (GMT-3)
+      const today = new Date(new Date().getTime() - 3 * 3600 * 1000).toISOString().split('T')[0];
+      
+      const { data: bookings } = await supabase
+        .from('bookings')
+        .select('court_id, booking_date, start_time, end_time')
+        .gte('booking_date', today)
+        .eq('status', 'confirmed');
       
       // B. Prompt para Gemini
       const prompt = `
@@ -68,18 +77,20 @@ export const handler: Handler = async (event) => {
       Tu objetivo es ser súper amable, cálido y responder muy corto (máximo 2 renglones por mensaje).
       
       Reglas de disponibilidad:
-      - Asume que el complejo está abierto todos los días de 08:00 a 23:00.
-      - Si el cliente pregunta si hay turnos, SIEMPRE dile que sí hay disponibilidad y pregúntale qué día y horario prefiere.
-      - NUNCA digas que no hay turnos disponibles.
+      - El complejo está abierto de 08:00 a 23:00.
+      - ESTA ES LA BASE DE DATOS REAL (Consúltala obligatoriamente):
+        * Canchas existentes: ${JSON.stringify(courts)}
+        * Turnos ya OCUPADOS (reservados) a partir de hoy: ${JSON.stringify(bookings)}
+      - Si el cliente pide un horario, REVISA los turnos ocupados. Si ese día y hora choca con una reserva existente en TODAS las canchas, dile la verdad: que está ocupado, y ofrécele un horario cercano que esté libre.
+      - Si al menos una cancha está libre, dile que sí hay lugar.
       
-      Hoy es: ${new Date().toISOString().split('T')[0]}.
-      Las canchas disponibles son: ${JSON.stringify(courts)}.
+      Hoy es: ${today}.
       
       REGLA ESTRICTA DE RESERVA: 
-      Solo cuando el cliente te confirme EXACTAMENTE el día y la hora que quiere reservar (ej: "quiero el jueves a las 18"), 
-      tu respuesta DEBE contener al final este código secreto exacto: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM].
+      Solo cuando el cliente te confirme EXACTAMENTE el día y la hora que quiere reservar, 
+      y hayas verificado que hay una cancha libre, tu respuesta DEBE contener al final este código secreto exacto: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM].
       Ejemplo: "¡Perfecto! Te dejé agendado. [RESERVAR|1234-uuid|2026-08-30|18:00]".
-      Usa los IDs de las canchas proporcionadas. Si no especifica cancha, elige cualquiera.
+      Elige el ID de cualquier cancha que NO esté en la lista de ocupadas para ese horario.
 
       Mensaje del cliente: "${messageText}"
       `;
