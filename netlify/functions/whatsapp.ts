@@ -106,17 +106,18 @@ export const handler: Handler = async (event) => {
       - Hoy es: ${today}. La hora actual es: ${currentTime}.
       - "Mañana" es el día siguiente a Hoy. "Jueves" es el próximo jueves. 
       - REGLA DE ORO: ¡Nunca ofrezcas un turno para un horario que ya pasó en el reloj actual!
-      - Si un horario es ambiguo (ej: "A las 8"), pide aclaración (08:00 o 20:00).
+      - LOS TURNOS SON ESTRICTAMENTE DE 1 HORA Y MEDIA. SOLO puedes darlos en estos horarios fijos: 08:00, 09:30, 11:00, 12:30, 14:00, 15:30, 17:00, 18:30, 20:00 y 21:30. 
+      - Si el cliente te pide un turno en un horario intermedio (ej: 08:30 o 21:00), dile que los turnos son fijos y ofrécele el más cercano de la grilla oficial.
       
       3. DISPONIBILIDAD (Base de Datos Real)
       - Canchas: ${JSON.stringify(courts)}
       - Ocupados: ${JSON.stringify(bookings)}
       - NUNCA pases el "ID" largo de la cancha al cliente. Llámalas por su nombre ("Cancha 1").
-      - Si te piden horarios disponibles, enuméralos claramente agrupados por cancha.
+      - Si te piden horarios disponibles, enuméralos claramente agrupados por cancha respetando la grilla.
       - Si el turno pedido está OCUPADO, di que "No", y muéstrale las alternativas libres para ese día.
       
       4. CREAR UNA RESERVA
-      - Necesitas 5 datos: Día, Hora, Nombre, Número de Teléfono y Tipo (Masculino/Femenino/Mixto).
+      - Necesitas 5 datos: Día, Hora exacta de la grilla, Nombre, Número de Teléfono y Tipo (Masculino/Femenino/Mixto).
       - Si faltan datos, NO reserves. Pide SOLAMENTE el dato que falte.
       - Una vez confirmado, tu respuesta DEBE terminar con: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM|Nombre|Tipo|Telefono]
       
@@ -132,7 +133,7 @@ export const handler: Handler = async (event) => {
       - Confirmado todo, tu respuesta DEBE terminar con: [CANCELAR|YYYY-MM-DD|HH:MM|Nombre|Telefono]
       
       8. TICKET DE RESUMEN (¡IMPORTANTE!)
-      - Cada vez que emitas un código secreto (RESERVAR, CANCELAR o MODIFICAR), INCLUYE SIEMPRE en tu mensaje un "Ticket de Resumen" (como un recibo) con viñetas detallando los datos de la operación para tranquilidad del cliente.
+      - Cada vez que emitas un código secreto (RESERVAR, CANCELAR o MODIFICAR), INCLUYE SIEMPRE en tu mensaje un "Ticket de Resumen" con viñetas detallando los datos de la operación para tranquilidad del cliente.
 
       HISTORIAL RECIENTE DE LA CONVERSACIÓN:
       ${historyText || '(No hay mensajes previos)'}
@@ -150,6 +151,15 @@ export const handler: Handler = async (event) => {
       supabase.from('chat_history').insert([{ phone: fromPhone, role: 'model', content: cleanedResponseText }])
         .then(res => { if(res.error) console.error('Error guardando historial model:', res.error); });
 
+      // Función helper para sumar 90 minutos
+      const add90Mins = (timeStr: string) => {
+        let [h, m] = timeStr.split(':').map(Number);
+        m += 90;
+        h += Math.floor(m / 60);
+        m = m % 60;
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      };
+
       // D. Leer si la IA decidió hacer una reserva
       const reserveMatch = responseText.match(/\[RESERVAR\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
       if (reserveMatch) {
@@ -162,7 +172,7 @@ export const handler: Handler = async (event) => {
           court_id,
           booking_date: date,
           start_time: time,
-          end_time: time, // Simplificado
+          end_time: add90Mins(time),
           customer_name: customer_name.trim(),
           customer_phone: customer_phone.trim(),
           match_type: match_type.trim(),
@@ -220,7 +230,7 @@ export const handler: Handler = async (event) => {
             court_id: court_id_nueva,
             booking_date: new_date,
             start_time: new_time,
-            end_time: new_time,
+            end_time: add90Mins(new_time),
             customer_name: customer_name.trim(),
             customer_phone: customer_phone.trim(),
             match_type: match_type.trim(),
