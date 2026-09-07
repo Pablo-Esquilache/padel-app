@@ -59,8 +59,10 @@ export const handler: Handler = async (event) => {
 
       // --- EMPIEZA LA MAGIA DE LA IA ---
 
-      // A. Obtener canchas activas y reservas futuras para la IA
+      // A. Obtener datos base
       const { data: courts } = await supabase.from('courts').select('id, name');
+      const { data: club } = await supabase.from('clubs').select('opening_hours').limit(1).single();
+      const { data: blockedTimes } = await supabase.from('blocked_times').select('*');
       
       // HISTORIAL DE CONVERSACIÓN
       const { data: historyData } = await supabase
@@ -72,25 +74,97 @@ export const handler: Handler = async (event) => {
       
       let historyText = "";
       if (historyData && historyData.length > 0) {
-        // Ordenar cronológicamente (del más viejo al más nuevo de los últimos 10)
         const chronological = historyData.reverse();
         historyText = chronological.map(msg => `${msg.role === 'user' ? 'Cliente' : 'Tú'}: ${msg.content}`).join('\n');
       }
 
-      // Guardar el nuevo mensaje del usuario en el historial
-      supabase.from('chat_history').insert([{ phone: fromPhone, role: 'user', content: messageText }])
-        .then(res => { if(res.error) console.error('Error guardando historial user:', res.error); });
+      supabase.from('chat_history').insert([{ phone: fromPhone, role: 'user', content: messageText }]).then();
 
       // Obtener fecha y hora actual en Argentina (GMT-3)
       const nowArg = new Date(new Date().getTime() - 3 * 3600 * 1000);
       const today = nowArg.toISOString().split('T')[0];
       const currentTime = nowArg.toISOString().split('T')[1].substring(0, 5); // "HH:MM"
       
+      const nextWeekArg = new Date(nowArg.getTime() + 7 * 24 * 3600 * 1000);
+      const nextWeek = nextWeekArg.toISOString().split('T')[0];
+
       const { data: bookings } = await supabase
         .from('bookings')
         .select('court_id, booking_date, start_time, end_time')
         .gte('booking_date', today)
+        .lte('booking_date', nextWeek)
         .eq('status', 'confirmed');
+        
+      // ALGORITMO CLONADO DE LA WEB: Calcular turnos libres exactos
+      const toMins = (timeStr: string) => {
+        const [h, m] = timeStr.split(':').map(Number);
+        return h * 60 + m;
+      };
+
+      const formatMins = (mins: number) => {
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        return `${(h === 24 ? 0 : h).toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+      };
+
+      let availableSlotsText = "";
+
+      for (let i = 0; i <= 7; i++) {
+        const targetDateObj = new Date(nowArg.getTime() + i * 24 * 3600 * 1000);
+        const targetDate = targetDateObj.toISOString().split('T')[0];
+        const dayOfWeek = targetDateObj.getUTCDay(); // 0 is Sunday, 1 is Monday
+        
+        availableSlotsText += `\n[ FECHA: ${targetDate} ]\n`;
+        
+        for (const court of (courts || [])) {
+          let courtSlots = [];
+          const blocks = (blockedTimes || []).filter(b => b.court_id === court.id && b.day_of_week === dayOfWeek);
+          const courtBookings = (bookings || []).filter(b => b.court_id === court.id && b.booking_date === targetDate);
+          
+          let startH = 8, endH = 24;
+          try {
+            const parts = (club?.opening_hours || '').split('-');
+            if (parts.length === 2) {
+              startH = parseInt(parts[0].trim().split(':')[0]) || 8;
+              let eH = parseInt(parts[1].trim().split(':')[0]) || 24;
+              if (eH === 0) eH = 24;
+              endH = eH;
+            }
+          } catch (e) {}
+
+          let currentMin = startH * 60;
+          const endMin = endH * 60;
+          
+          while (currentMin + 90 <= endMin) {
+            const slotEndMin = currentMin + 90;
+            
+            const overlappingBlock = blocks.find(b => {
+              const bS = toMins(b.start_time);
+              const bE = toMins(b.end_time);
+              return bS < slotEndMin && bE > currentMin;
+            });
+
+            if (overlappingBlock) {
+              currentMin = toMins(overlappingBlock.end_time);
+            } else {
+              const startStr = formatMins(currentMin);
+              const isBooked = courtBookings.some(b => b.start_time.startsWith(startStr));
+              let isPast = false;
+              if (targetDate === today) {
+                isPast = currentMin <= toMins(currentTime);
+              }
+              
+              if (!isBooked && !isPast) {
+                courtSlots.push(startStr);
+              }
+              currentMin = slotEndMin;
+            }
+          }
+          if (courtSlots.length > 0) {
+            availableSlotsText += `* ${court.name}: ${courtSlots.join(', ')}\n`;
+          }
+        }
+      }
       
       // B. Prompt para Gemini
       const prompt = `
@@ -102,30 +176,29 @@ export const handler: Handler = async (event) => {
       - NO CHARLES. Si preguntan cosas no relacionadas, diles que solo gestionas turnos.
       - NUNCA INVENTES horarios ni datos.
       
-      2. INTERPRETACIÓN DE TIEMPO Y CANCHAS
+      2. INTERPRETACIÓN DE TIEMPO
       - Hoy es: ${today}. La hora actual es: ${currentTime}.
       - "Mañana" es el día siguiente a Hoy. "Jueves" es el próximo jueves. 
-      - REGLA DE ORO: ¡Nunca ofrezcas un turno para un horario que ya pasó en el reloj actual!
-      - LOS TURNOS SON ESTRICTAMENTE DE 1 HORA Y MEDIA. SOLO puedes darlos en estos horarios fijos: 08:00, 09:30, 11:00, 12:30, 14:00, 15:30, 17:00, 18:30, 20:00 y 21:30. 
-      - Si el cliente te pide un turno en un horario intermedio (ej: 08:30 o 21:00), dile que los turnos son fijos y ofrécele el más cercano de la grilla oficial.
       
-      3. DISPONIBILIDAD (Base de Datos Real)
-      - Canchas: ${JSON.stringify(courts)}
-      - Ocupados: ${JSON.stringify(bookings)}
-      - NUNCA pases el "ID" largo de la cancha al cliente. Llámalas por su nombre ("Cancha 1").
-      - Si te piden horarios disponibles, enuméralos claramente agrupados por cancha respetando la grilla.
-      - Si el turno pedido está OCUPADO, di que "No", y muéstrale las alternativas libres para ese día.
+      3. DISPONIBILIDAD EXACTA (LEER ATENTAMENTE)
+      Aquí tienes la lista EXACTA de turnos libres para los próximos 7 días, calculada matemáticamente (ya tiene restados los turnos ocupados, las clases y los turnos vencidos por la hora actual):
+      
+      ${availableSlotsText}
+      
+      - NUNCA ofrezcas un turno que no esté explícitamente en la lista de arriba para ese día. Si no está en la lista, significa que la cancha está OCUPADA o CERRADA.
+      - Si el turno pedido está OCUPADO, di que "No", y muéstrale las alternativas libres que ves en la lista.
+      - Canchas IDs (SOLO usar para el código secreto): ${JSON.stringify(courts)}
       
       4. CREAR UNA RESERVA
-      - Necesitas 5 datos: Día, Hora exacta de la grilla, Nombre, Número de Teléfono y Tipo (Masculino/Femenino/Mixto).
+      - Necesitas 5 datos: Día, Hora exacta libre de la lista, Nombre, Número de Teléfono y Tipo (Masculino/Femenino/Mixto).
       - Si faltan datos, NO reserves. Pide SOLAMENTE el dato que falte.
       - Una vez confirmado, tu respuesta DEBE terminar con: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM|Nombre|Tipo|Telefono]
       
       5. CONSULTAR TURNOS PROPIOS
-      - Si preguntan "¿Qué turno tengo?", revisa la lista buscando su nombre/teléfono.
+      - Si preguntan "¿Qué turno tengo?", ya no puedes buscarlo tú mismo, indícales que no puedes revisar turnos pasados ni propios por ahora, solo agendar nuevos.
       
       6. MODIFICAR UN TURNO
-      - Si piden cambiar un turno, pregunta qué día/hora lo tenían, y para cuándo lo quieren.
+      - Si piden cambiar un turno, pregunta qué día/hora lo tenían, y para cuándo lo quieren (revisando la lista de libres).
       - Confirmado todo, tu respuesta DEBE terminar con: [MODIFICAR|id_de_cancha_nueva|fecha_vieja|hora_vieja|fecha_nueva|hora_nueva|Nombre|Tipo|Telefono]
       
       7. CANCELAR UN TURNO
