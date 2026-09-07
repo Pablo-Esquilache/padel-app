@@ -60,7 +60,7 @@ export const handler: Handler = async (event) => {
       // --- EMPIEZA LA MAGIA DE LA IA ---
 
       // A. Obtener canchas activas y reservas futuras para la IA
-      const { data: courts } = await supabase.from('courts').select('id, name').eq('is_active', true);
+      const { data: courts } = await supabase.from('courts').select('id, name');
       
       // HISTORIAL DE CONVERSACIÓN
       const { data: historyData } = await supabase
