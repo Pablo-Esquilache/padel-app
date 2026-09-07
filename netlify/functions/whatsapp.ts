@@ -271,18 +271,22 @@ export const handler: Handler = async (event) => {
         const [_, date, time, customer_name, customer_phone] = cancelMatch;
         responseText = cleanedResponseText;
         
-        const { error } = await supabase
+        // Relajar el chequeo del teléfono buscando solo los últimos 8 dígitos (por si en la web lo escribieron sin prefijo)
+        const phoneSuffix = customer_phone.trim().slice(-8);
+
+        const { data, error } = await supabase
           .from('bookings')
           .update({ status: 'cancelled' })
           .eq('booking_date', date)
           .eq('start_time', time)
           .ilike('customer_name', `%${customer_name.trim()}%`)
-          .eq('customer_phone', customer_phone.trim())
-          .eq('status', 'confirmed');
+          .ilike('customer_phone', `%${phoneSuffix}%`)
+          .eq('status', 'confirmed')
+          .select();
           
-        if (error) {
-           console.error('Error DB Cancelar:', error);
-           responseText = "Ups, hubo un problema y no pude cancelar el turno. Contacta al club.";
+        if (error || !data || data.length === 0) {
+           console.error('Error DB Cancelar:', error || '0 filas actualizadas');
+           responseText = "Ups, no encontré ningún turno a tu nombre en ese horario para cancelar. Revisa los datos.";
         } else {
            actionSuccessful = true;
         }
@@ -294,17 +298,20 @@ export const handler: Handler = async (event) => {
         const [_, court_id_nueva, old_date, old_time, new_date, new_time, customer_name, match_type, customer_phone] = modMatch;
         responseText = cleanedResponseText;
         
+        const phoneSuffix = customer_phone.trim().slice(-8);
+
         // Primero cancelamos el viejo
-        const { error: errorCancel } = await supabase
+        const { data: cancelData, error: errorCancel } = await supabase
           .from('bookings')
           .update({ status: 'cancelled' })
           .eq('booking_date', old_date)
           .eq('start_time', old_time)
           .ilike('customer_name', `%${customer_name.trim()}%`)
-          .eq('customer_phone', customer_phone.trim())
-          .eq('status', 'confirmed');
+          .ilike('customer_phone', `%${phoneSuffix}%`)
+          .eq('status', 'confirmed')
+          .select();
           
-        if (!errorCancel) {
+        if (!errorCancel && cancelData && cancelData.length > 0) {
           // Si pudimos cancelar, insertamos el nuevo
           const cancellationCode = Math.random().toString(36).substring(2, 10).toUpperCase();
           const { error: errorInsert } = await supabase.from('bookings').insert([{
@@ -313,11 +320,12 @@ export const handler: Handler = async (event) => {
             start_time: new_time,
             end_time: add90Mins(new_time),
             customer_name: customer_name.trim(),
-            customer_phone: customer_phone.trim(),
+            customer_phone: customer_phone.trim(), // Guardamos el nuevo completo
             match_type: match_type.trim(),
             cancellation_code: cancellationCode,
             status: 'confirmed'
           }]);
+          
           if (errorInsert) {
              console.error('Error DB Modificar Insert:', errorInsert);
              responseText = "Cancelé tu turno anterior pero el nuevo horario se acaba de ocupar. Hablemos para buscar otro.";
@@ -325,8 +333,8 @@ export const handler: Handler = async (event) => {
              actionSuccessful = true;
           }
         } else {
-           console.error('Error DB Modificar Cancel:', errorCancel);
-           responseText = "Ups, no encontré el turno original para modificar. Revisa que los datos sean correctos.";
+           console.error('Error DB Modificar Cancel:', errorCancel || '0 filas canceladas');
+           responseText = "Ups, no encontré el turno original a tu nombre para modificar. Revisa que el día y horario sean correctos.";
         }
       }
 
