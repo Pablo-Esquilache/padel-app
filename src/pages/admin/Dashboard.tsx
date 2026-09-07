@@ -110,10 +110,79 @@ export default function Dashboard() {
   };
 
   const generateWhatsAppMessage = () => {
-    let text = `🎾 *¡Turnos disponibles en ${club?.name}!* 🎾%0A%0A`;
-    text += `👉 Reserva rápido ingresando a nuestra web:%0A`;
-    text += `http://localhost:5173/ %0A%0A`;
-    text += `¡Los esperamos!`;
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const currentTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const dayOfWeek = d.getDay();
+    
+    let text = `🎾 *¡Turnos disponibles para HOY en ${club?.name}!* 🎾%0A%0A`;
+    let hayTurnos = false;
+
+    const toMins = (timeStr: string) => {
+      const [h, m] = timeStr.split(':').map(Number);
+      return h * 60 + m;
+    };
+    const formatMins = (mins: number) => {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return `${(h === 24 ? 0 : h).toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    };
+
+    courts.forEach(court => {
+      const blocks = blockedTimes.filter(b => b.court_id === court.id && b.day_of_week === dayOfWeek);
+      const courtBookings = bookings.filter(b => b.court_id === court.id && b.booking_date === today);
+      
+      let startH = 8, endH = 24;
+      try {
+        const parts = (club?.opening_hours || '').split('-');
+        if (parts.length === 2) {
+          startH = parseInt(parts[0].trim().split(':')[0]) || 8;
+          let eH = parseInt(parts[1].trim().split(':')[0]) || 24;
+          if (eH === 0) eH = 24;
+          endH = eH;
+        }
+      } catch (e) {}
+
+      let currentMin = startH * 60;
+      const endMin = endH * 60;
+      let freeSlots: string[] = [];
+
+      while (currentMin + 90 <= endMin) {
+        const slotEndMin = currentMin + 90;
+        const overlappingBlock = blocks.find(b => {
+          return toMins(b.start_time) < slotEndMin && toMins(b.end_time) > currentMin;
+        });
+
+        if (overlappingBlock) {
+          currentMin = toMins(overlappingBlock.end_time);
+        } else {
+          const startStr = formatMins(currentMin);
+          const isBooked = courtBookings.some(b => b.start_time.startsWith(startStr));
+          const isPast = currentMin <= toMins(currentTime);
+          
+          if (!isBooked && !isPast) {
+            freeSlots.push(startStr);
+          }
+          currentMin = slotEndMin;
+        }
+      }
+      
+      if (freeSlots.length > 0) {
+        hayTurnos = true;
+        text += `*${court.name}:* ${freeSlots.join(', ')}%0A`;
+      }
+    });
+
+    if (!hayTurnos) {
+      text += `_¡Ya estamos llenos por hoy!_ 😱%0A%0A`;
+    } else {
+      text += `%0A`;
+    }
+
+    // Usamos el origin real (localhost o netlify)
+    const publicUrl = `${window.location.origin}/club/${club?.id}`;
+    text += `👉 *Reserva online acá:*%0A${publicUrl}`;
+    
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
