@@ -62,8 +62,29 @@ export const handler: Handler = async (event) => {
       // A. Obtener canchas activas y reservas futuras para la IA
       const { data: courts } = await supabase.from('courts').select('id, name').eq('is_active', true);
       
-      // Obtener fecha actual en hora de Argentina (GMT-3)
-      const today = new Date(new Date().getTime() - 3 * 3600 * 1000).toISOString().split('T')[0];
+      // HISTORIAL DE CONVERSACIÓN
+      const { data: historyData } = await supabase
+        .from('chat_history')
+        .select('role, content')
+        .eq('phone', fromPhone)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      
+      let historyText = "";
+      if (historyData && historyData.length > 0) {
+        // Ordenar cronológicamente (del más viejo al más nuevo de los últimos 10)
+        const chronological = historyData.reverse();
+        historyText = chronological.map(msg => `${msg.role === 'user' ? 'Cliente' : 'Tú'}: ${msg.content}`).join('\n');
+      }
+
+      // Guardar el nuevo mensaje del usuario en el historial
+      supabase.from('chat_history').insert([{ phone: fromPhone, role: 'user', content: messageText }])
+        .then(res => { if(res.error) console.error('Error guardando historial user:', res.error); });
+
+      // Obtener fecha y hora actual en Argentina (GMT-3)
+      const nowArg = new Date(new Date().getTime() - 3 * 3600 * 1000);
+      const today = nowArg.toISOString().split('T')[0];
+      const currentTime = nowArg.toISOString().split('T')[1].substring(0, 5); // "HH:MM"
       
       const { data: bookings } = await supabase
         .from('bookings')
@@ -83,29 +104,36 @@ export const handler: Handler = async (event) => {
       - ESTA ES LA BASE DE DATOS REAL:
         * Canchas existentes: ${JSON.stringify(courts)}
         * Turnos ya OCUPADOS a partir de hoy: ${JSON.stringify(bookings)}
-      - ¡ATENCIÓN! NUNCA le digas al cliente el "id" de la cancha (que es un código larguísimo). Al hablar con el cliente llámalas SOLO por su nombre (ej: "Cancha 1" o "Cancha 2"). El "id" úsalo ÚNICAMENTE para escribir el código secreto al final.
-      - Si te piden horarios disponibles, DEBES listarlos claramente agrupados por cancha. Ejemplo:
-        Cancha 1: 08:00, 11:00...
-        Cancha 2: 09:30, 18:00...
+      - ¡ATENCIÓN! NUNCA le digas al cliente el "id" de la cancha. Llámalas SOLO por su nombre (ej: "Cancha 1"). El "id" úsalo ÚNICAMENTE en el código secreto.
+      - Si te piden horarios disponibles, DEBES listarlos claramente agrupados por cancha.
       
-      Hoy es: ${today}.
+      Hoy es: ${today}. La hora actual es: ${currentTime}.
+      REGLA DE ORO: ¡NUNCA ofrezcas un turno para hoy cuyo horario ya haya pasado de la hora actual!
       
       REGLA ESTRICTA DE RESERVA (¡MUUY IMPORTANTE!): 
       Para agendar, OBLIGATORIAMENTE necesitas 5 cosas: Día, Hora, Nombre, Número de Teléfono y Tipo de partido (Masculino, Femenino o Mixto).
-      PASO 1: Si faltan datos, PÍDESELOS ("¿Me pasas un nombre, teléfono y si es masculino, femenino o mixto?"). NO RESERVES TODAVÍA.
+      PASO 1: Si faltan datos, PÍDESELOS. NO RESERVES TODAVÍA.
       PASO 2: Solo cuando tengas TODOS los datos y haya lugar, tu respuesta DEBE contener al final este código secreto exacto: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM|Nombre|Tipo|Telefono].
       
       REGLA ESTRICTA DE CANCELACIÓN:
-      Si el cliente quiere cancelar, pregúntale: Día, Hora, Nombre y Número de Teléfono con el que reservó.
-      Solo cuando te confirme todos los datos, tu respuesta DEBE contener al final este código secreto exacto: [CANCELAR|YYYY-MM-DD|HH:MM|Nombre|Telefono].
+      Si el cliente quiere cancelar, pregúntale: Día, Hora, Nombre y Número de Teléfono.
+      Solo cuando te confirme todo, tu respuesta DEBE contener al final: [CANCELAR|YYYY-MM-DD|HH:MM|Nombre|Telefono].
 
-      Mensaje del cliente: "${messageText}"
+      HISTORIAL RECIENTE DE LA CONVERSACIÓN:
+      ${historyText || '(No hay mensajes previos)'}
+
+      Nuevo mensaje del cliente: "${messageText}"
       `;
 
       // C. Consultar a Gemini
       const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
       const result = await model.generateContent(prompt);
       let responseText = result.response.text();
+
+      // Guardar la respuesta del modelo en el historial (antes de limpiar los códigos secretos para que lo recuerde? No, mejor lo que vio el cliente)
+      let cleanedResponseText = responseText.replace(/\[RESERVAR.*\]/, '').replace(/\[CANCELAR.*\]/, '').trim();
+      supabase.from('chat_history').insert([{ phone: fromPhone, role: 'model', content: cleanedResponseText }])
+        .then(res => { if(res.error) console.error('Error guardando historial model:', res.error); });
 
       // D. Leer si la IA decidió hacer una reserva
       const reserveMatch = responseText.match(/\[RESERVAR\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
