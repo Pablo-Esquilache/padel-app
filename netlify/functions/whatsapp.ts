@@ -190,20 +190,21 @@ export const handler: Handler = async (event) => {
       - Canchas IDs (SOLO usar para el código secreto): ${JSON.stringify(courts)}
       
       4. CREAR UNA RESERVA
-      - Necesitas 5 datos: Día, Hora exacta libre de la lista, Nombre, Número de Teléfono y Tipo (Masculino/Femenino/Mixto).
+      - Necesitas 4 datos: Día, Hora exacta de la lista, Nombre y Tipo (Masculino/Femenino/Mixto).
+      - EL TELÉFONO DEL CLIENTE ES: ${fromPhone}. Úsalo internamente, NUNCA se lo preguntes.
       - Si faltan datos, NO reserves. Pide SOLAMENTE el dato que falte.
-      - Una vez confirmado, tu respuesta DEBE terminar con: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM|Nombre|Tipo|Telefono]
+      - Una vez confirmado, tu respuesta DEBE terminar con: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM|Nombre|Tipo|${fromPhone}]
       
       5. CONSULTAR TURNOS PROPIOS
       - Si preguntan "¿Qué turno tengo?", ya no puedes buscarlo tú mismo, indícales que no puedes revisar turnos pasados ni propios por ahora, solo agendar nuevos.
       
       6. MODIFICAR UN TURNO
-      - Si piden cambiar un turno, pregunta qué día/hora lo tenían, y para cuándo lo quieren (revisando la lista de libres).
-      - Confirmado todo, tu respuesta DEBE terminar con: [MODIFICAR|id_de_cancha_nueva|fecha_vieja|hora_vieja|fecha_nueva|hora_nueva|Nombre|Tipo|Telefono]
+      - Si piden cambiar un turno, pregunta qué día/hora lo tenían, y para cuándo lo quieren (revisando la lista). NO preguntes el teléfono.
+      - Confirmado todo, tu respuesta DEBE terminar con: [MODIFICAR|id_de_cancha_nueva|fecha_vieja|hora_vieja|fecha_nueva|hora_nueva|Nombre|Tipo|${fromPhone}]
       
       7. CANCELAR UN TURNO
-      - Si piden cancelar, confirma su Nombre, Teléfono y Día/Hora del turno.
-      - Confirmado todo, tu respuesta DEBE terminar con: [CANCELAR|YYYY-MM-DD|HH:MM|Nombre|Telefono]
+      - Si piden cancelar, confirma su Nombre y Día/Hora del turno. NO preguntes el teléfono.
+      - Confirmado todo, tu respuesta DEBE terminar con: [CANCELAR|YYYY-MM-DD|HH:MM|Nombre|${fromPhone}]
       
       8. TICKET DE RESUMEN (¡IMPORTANTE!)
       - Cada vez que emitas un código secreto (RESERVAR, CANCELAR o MODIFICAR), INCLUYE SIEMPRE en tu mensaje un "Ticket de Resumen" con viñetas detallando los datos de la operación para tranquilidad del cliente.

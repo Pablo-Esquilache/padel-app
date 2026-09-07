@@ -211,6 +211,7 @@ export default function Dashboard() {
                     <th className="p-4 font-medium">Cancha</th>
                     <th className="p-4 font-medium">Titular</th>
                     <th className="p-4 font-medium">Teléfono</th>
+                    <th className="p-4 font-medium">Tipo</th>
                     <th className="p-4 font-medium">Estado</th>
                     <th className="p-4 font-medium">Acciones</th>
                   </tr>
@@ -225,6 +226,7 @@ export default function Dashboard() {
                         <td className="p-4 text-sm">{courts.find(c => c.id === b.court_id)?.name}</td>
                         <td className="p-4 text-sm font-medium">{b.customer_name}</td>
                         <td className="p-4 text-sm">{b.customer_phone}</td>
+                        <td className="p-4 text-sm">{b.match_type}</td>
                         <td className="p-4 text-sm">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${b.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                             {b.status === 'confirmed' ? 'Confirmado' : 'Cancelado'}
