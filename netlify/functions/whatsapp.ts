@@ -61,7 +61,7 @@ export const handler: Handler = async (event) => {
 
       // A. Obtener datos base
       const { data: courts } = await supabase.from('courts').select('id, name');
-      const { data: club } = await supabase.from('clubs').select('opening_hours').limit(1).single();
+      const { data: club } = await supabase.from('clubs').select('opening_hours, admin_phone').limit(1).single();
       const { data: blockedTimes } = await supabase.from('blocked_times').select('*');
       
       // HISTORIAL DE CONVERSACIÓN
@@ -234,6 +234,9 @@ export const handler: Handler = async (event) => {
         return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
       };
 
+      // Bandera para saber si notificamos al admin
+      let actionSuccessful = false;
+
       // D. Leer si la IA decidió hacer una reserva
       const reserveMatch = responseText.match(/\[RESERVAR\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
       if (reserveMatch) {
@@ -257,6 +260,8 @@ export const handler: Handler = async (event) => {
         if (error) {
           console.error('Error DB Reserva:', error);
           responseText = "Ups, hubo un choque en la base de datos y no pude guardar el turno.";
+        } else {
+          actionSuccessful = true;
         }
       }
 
@@ -278,6 +283,8 @@ export const handler: Handler = async (event) => {
         if (error) {
            console.error('Error DB Cancelar:', error);
            responseText = "Ups, hubo un problema y no pude cancelar el turno. Contacta al club.";
+        } else {
+           actionSuccessful = true;
         }
       }
       
@@ -314,6 +321,8 @@ export const handler: Handler = async (event) => {
           if (errorInsert) {
              console.error('Error DB Modificar Insert:', errorInsert);
              responseText = "Cancelé tu turno anterior pero el nuevo horario se acaba de ocupar. Hablemos para buscar otro.";
+          } else {
+             actionSuccessful = true;
           }
         } else {
            console.error('Error DB Modificar Cancel:', errorCancel);
@@ -321,10 +330,10 @@ export const handler: Handler = async (event) => {
         }
       }
 
-      // F. Enviar la respuesta de vuelta al cliente vía Meta Cloud API
+      // G. Enviar la respuesta vía Meta Cloud API
       const metaUrl = `https://graph.facebook.com/v19.0/${META_PHONE_ID}/messages`;
       
-      const sendToMeta = async (phone: string) => {
+      const sendToMeta = async (phone: string, textOverride?: string) => {
         return fetch(metaUrl, {
           method: 'POST',
           headers: {
@@ -335,45 +344,39 @@ export const handler: Handler = async (event) => {
             messaging_product: 'whatsapp',
             to: phone,
             type: 'text',
-            text: { body: responseText }
+            text: { body: textOverride || responseText }
           })
         });
       };
 
-      let metaResponse = await sendToMeta(fromPhone);
-
-      if (!metaResponse.ok) {
-        let errorText = await metaResponse.text();
-        console.error('🔥 ERROR DE FACEBOOK AL RESPONDER:', errorText);
-        
-        // Magia para Argentina: Si falla por el '9' fantasma, reintentar sin el '9' y agregando el '15'
-        if (errorText.includes('131030') && fromPhone.startsWith('549')) {
-          console.log('🇦🇷 Detectado número de Argentina. Probando formatos alternativos...');
-          
-          // Formato sin 9
-          let phoneAlt = fromPhone.replace(/^549/, '54');
-          
-          // Hardcode para el número específico del usuario (Meta inyecta el 15)
-          if (fromPhone === '5492355642628') {
-            phoneAlt = '54235515642628';
-          }
-
-          metaResponse = await sendToMeta(phoneAlt);
-          
-          if (!metaResponse.ok) {
-            console.error('🔥 ERROR EN REINTENTO:', await metaResponse.text());
-          } else {
-            console.log('✅ REINTENTO ALTERNATIVO FUE UN ÉXITO');
+      const sendSafe = async (phone: string, text: string) => {
+        let metaResponse = await sendToMeta(phone, text);
+        if (!metaResponse.ok) {
+          let errorText = await metaResponse.text();
+          console.error('ERROR DE FACEBOOK AL RESPONDER A', phone, ':', errorText);
+          if (errorText.includes('131030') && phone.startsWith('549')) {
+            console.log('Detectado número de Argentina. Probando formatos alternativos...');
+            let phoneAlt = phone.replace(/^549/, '54');
+            if (phone === '5492355642628') phoneAlt = '54235515642628';
+            await sendToMeta(phoneAlt, text);
           }
         }
-      } else {
-        console.log('✅ RESPUESTA ENVIADA A FACEBOOK CON ÉXITO');
+      };
+
+      // 1. Enviar respuesta final al cliente
+      await sendSafe(fromPhone, responseText);
+      
+      // 2. Enviar notificación Push al Administrador si hubo movimiento
+      if (actionSuccessful && club?.admin_phone) {
+         const adminMsg = `🚨 *Alerta del Sistema* 🚨\nUn cliente acaba de actualizar la agenda. Aquí tienes su resumen:\n\n${cleanedResponseText}`;
+         // El admin_phone guardado en la config ya debería incluir código de país, ej 549...
+         await sendSafe(club.admin_phone, adminMsg);
       }
 
       return { statusCode: 200, body: 'EVENT_RECEIVED' };
     } catch (error) {
       console.error('Error en POST webhook:', error);
-      // Meta requiere que siempre devolvamos 200 para que no reintente locamente
+      // Meta requiere que siempre devolvamos 200
       return { statusCode: 200, body: 'EVENT_RECEIVED' };
     }
   }

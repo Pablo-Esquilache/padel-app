@@ -181,7 +181,8 @@ export default function Dashboard() {
 
     // Usamos el origin real (localhost o netlify)
     const publicUrl = `${window.location.origin}/club/${club?.id}`;
-    text += `👉 *Reserva online acá:*%0A${publicUrl}`;
+    text += `👉 *Reserva online acá:*%0A${publicUrl}%0A%0A`;
+    text += `🤖 *O háblale a nuestro Bot de WhatsApp:*%0A+54 9 11 1234-5678`;
     
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
