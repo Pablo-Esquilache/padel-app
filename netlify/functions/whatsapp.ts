@@ -96,28 +96,43 @@ export const handler: Handler = async (event) => {
       const prompt = `
       Eres el recepcionista por WhatsApp de un complejo de pádel en Argentina. 
       
-      REGLAS DE PERSONALIDAD Y SALUDOS:
-      - Sé amable, directo y responde MUY corto.
-      - NUNCA digas "Hola", "Buenas" o saludes a menos que sea evidente que es el primer mensaje del cliente.
+      1. PERSONALIDAD Y LÍMITES
+      - Sé amable, directo y responde MUY corto (conciso).
+      - NUNCA digas "Hola" ni saludes a menos que sea el primer mensaje del cliente.
+      - NO CHARLES. Si preguntan cosas no relacionadas, diles que solo gestionas turnos.
+      - NUNCA INVENTES horarios ni datos.
       
-      REGLAS DE DISPONIBILIDAD Y CANCHAS:
-      - ESTA ES LA BASE DE DATOS REAL:
-        * Canchas existentes: ${JSON.stringify(courts)}
-        * Turnos ya OCUPADOS a partir de hoy: ${JSON.stringify(bookings)}
-      - ¡ATENCIÓN! NUNCA le digas al cliente el "id" de la cancha. Llámalas SOLO por su nombre (ej: "Cancha 1"). El "id" úsalo ÚNICAMENTE en el código secreto.
-      - Si te piden horarios disponibles, DEBES listarlos claramente agrupados por cancha.
+      2. INTERPRETACIÓN DE TIEMPO Y CANCHAS
+      - Hoy es: ${today}. La hora actual es: ${currentTime}.
+      - "Mañana" es el día siguiente a Hoy. "Jueves" es el próximo jueves. 
+      - REGLA DE ORO: ¡Nunca ofrezcas un turno para un horario que ya pasó en el reloj actual!
+      - Si un horario es ambiguo (ej: "A las 8"), pide aclaración (08:00 o 20:00).
       
-      Hoy es: ${today}. La hora actual es: ${currentTime}.
-      REGLA DE ORO: ¡NUNCA ofrezcas un turno para hoy cuyo horario ya haya pasado de la hora actual!
+      3. DISPONIBILIDAD (Base de Datos Real)
+      - Canchas: ${JSON.stringify(courts)}
+      - Ocupados: ${JSON.stringify(bookings)}
+      - NUNCA pases el "ID" largo de la cancha al cliente. Llámalas por su nombre ("Cancha 1").
+      - Si te piden horarios disponibles, enuméralos claramente agrupados por cancha.
+      - Si el turno pedido está OCUPADO, di que "No", y muéstrale las alternativas libres para ese día.
       
-      REGLA ESTRICTA DE RESERVA (¡MUUY IMPORTANTE!): 
-      Para agendar, OBLIGATORIAMENTE necesitas 5 cosas: Día, Hora, Nombre, Número de Teléfono y Tipo de partido (Masculino, Femenino o Mixto).
-      PASO 1: Si faltan datos, PÍDESELOS. NO RESERVES TODAVÍA.
-      PASO 2: Solo cuando tengas TODOS los datos y haya lugar, tu respuesta DEBE contener al final este código secreto exacto: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM|Nombre|Tipo|Telefono].
+      4. CREAR UNA RESERVA
+      - Necesitas 5 datos: Día, Hora, Nombre, Número de Teléfono y Tipo (Masculino/Femenino/Mixto).
+      - Si faltan datos, NO reserves. Pide SOLAMENTE el dato que falte.
+      - Una vez confirmado, tu respuesta DEBE terminar con: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM|Nombre|Tipo|Telefono]
       
-      REGLA ESTRICTA DE CANCELACIÓN:
-      Si el cliente quiere cancelar, pregúntale: Día, Hora, Nombre y Número de Teléfono.
-      Solo cuando te confirme todo, tu respuesta DEBE contener al final: [CANCELAR|YYYY-MM-DD|HH:MM|Nombre|Telefono].
+      5. CONSULTAR TURNOS PROPIOS
+      - Si preguntan "¿Qué turno tengo?", revisa la lista buscando su nombre/teléfono.
+      
+      6. MODIFICAR UN TURNO
+      - Si piden cambiar un turno, pregunta qué día/hora lo tenían, y para cuándo lo quieren.
+      - Confirmado todo, tu respuesta DEBE terminar con: [MODIFICAR|id_de_cancha_nueva|fecha_vieja|hora_vieja|fecha_nueva|hora_nueva|Nombre|Tipo|Telefono]
+      
+      7. CANCELAR UN TURNO
+      - Si piden cancelar, confirma su Nombre, Teléfono y Día/Hora del turno.
+      - Confirmado todo, tu respuesta DEBE terminar con: [CANCELAR|YYYY-MM-DD|HH:MM|Nombre|Telefono]
+      
+      8. TICKET DE RESUMEN (¡IMPORTANTE!)
+      - Cada vez que emitas un código secreto (RESERVAR, CANCELAR o MODIFICAR), INCLUYE SIEMPRE en tu mensaje un "Ticket de Resumen" (como un recibo) con viñetas detallando los datos de la operación para tranquilidad del cliente.
 
       HISTORIAL RECIENTE DE LA CONVERSACIÓN:
       ${historyText || '(No hay mensajes previos)'}
@@ -131,7 +146,7 @@ export const handler: Handler = async (event) => {
       let responseText = result.response.text();
 
       // Guardar la respuesta del modelo en el historial (antes de limpiar los códigos secretos para que lo recuerde? No, mejor lo que vio el cliente)
-      let cleanedResponseText = responseText.replace(/\[RESERVAR.*\]/, '').replace(/\[CANCELAR.*\]/, '').trim();
+      let cleanedResponseText = responseText.replace(/\[RESERVAR.*\]/, '').replace(/\[CANCELAR.*\]/, '').replace(/\[MODIFICAR.*\]/, '').trim();
       supabase.from('chat_history').insert([{ phone: fromPhone, role: 'model', content: cleanedResponseText }])
         .then(res => { if(res.error) console.error('Error guardando historial model:', res.error); });
 
@@ -139,7 +154,7 @@ export const handler: Handler = async (event) => {
       const reserveMatch = responseText.match(/\[RESERVAR\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
       if (reserveMatch) {
         const [_, court_id, date, time, customer_name, match_type, customer_phone] = reserveMatch;
-        responseText = responseText.replace(/\[RESERVAR.*\]/, '').trim(); // Ocultar código
+        responseText = cleanedResponseText; // Ocultar código
         
         const cancellationCode = Math.random().toString(36).substring(2, 10).toUpperCase();
 
@@ -165,7 +180,7 @@ export const handler: Handler = async (event) => {
       const cancelMatch = responseText.match(/\[CANCELAR\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
       if (cancelMatch) {
         const [_, date, time, customer_name, customer_phone] = cancelMatch;
-        responseText = responseText.replace(/\[CANCELAR.*\]/, '').trim();
+        responseText = cleanedResponseText;
         
         const { error } = await supabase
           .from('bookings')
@@ -179,6 +194,46 @@ export const handler: Handler = async (event) => {
         if (error) {
            console.error('Error DB Cancelar:', error);
            responseText = "Ups, hubo un problema y no pude cancelar el turno. Contacta al club.";
+        }
+      }
+      
+      // F. Leer si la IA decidió MODIFICAR un turno
+      const modMatch = responseText.match(/\[MODIFICAR\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
+      if (modMatch) {
+        const [_, court_id_nueva, old_date, old_time, new_date, new_time, customer_name, match_type, customer_phone] = modMatch;
+        responseText = cleanedResponseText;
+        
+        // Primero cancelamos el viejo
+        const { error: errorCancel } = await supabase
+          .from('bookings')
+          .update({ status: 'cancelled' })
+          .eq('booking_date', old_date)
+          .eq('start_time', old_time)
+          .ilike('customer_name', `%${customer_name.trim()}%`)
+          .eq('customer_phone', customer_phone.trim())
+          .eq('status', 'confirmed');
+          
+        if (!errorCancel) {
+          // Si pudimos cancelar, insertamos el nuevo
+          const cancellationCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+          const { error: errorInsert } = await supabase.from('bookings').insert([{
+            court_id: court_id_nueva,
+            booking_date: new_date,
+            start_time: new_time,
+            end_time: new_time,
+            customer_name: customer_name.trim(),
+            customer_phone: customer_phone.trim(),
+            match_type: match_type.trim(),
+            cancellation_code: cancellationCode,
+            status: 'confirmed'
+          }]);
+          if (errorInsert) {
+             console.error('Error DB Modificar Insert:', errorInsert);
+             responseText = "Cancelé tu turno anterior pero el nuevo horario se acaba de ocupar. Hablemos para buscar otro.";
+          }
+        } else {
+           console.error('Error DB Modificar Cancel:', errorCancel);
+           responseText = "Ups, no encontré el turno original para modificar. Revisa que los datos sean correctos.";
         }
       }
 
