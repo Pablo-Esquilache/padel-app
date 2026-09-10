@@ -10,6 +10,7 @@ CREATE TABLE clubs (
   opening_hours TEXT,
   courts_count INTEGER DEFAULT 1,
   admin_phone TEXT, -- Añadido para notificaciones de WhatsApp
+  whatsapp_phone_id TEXT, -- Identificador de Meta para ruteo Multi-Tenant
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -145,9 +146,8 @@ CREATE POLICY "Owners can manage their blocked times." ON blocked_times FOR ALL 
 );
 
 -- Políticas para CHAT HISTORY:
--- Sin acceso público. Solo el backend con service_role key o el owner pueden acceder.
-CREATE POLICY "Service role and owners can access chat history." ON chat_history FOR ALL USING (true); 
--- (Nota: service_role bypassea RLS de todas formas, así que en teoría podríamos dejar esta tabla sin políticas públicas)
+-- CERRADO: Sin acceso público. Solo el backend con service_role key puede acceder.
+DROP POLICY IF EXISTS "Service role and owners can access chat history." ON chat_history;
 
 -- Políticas para CUSTOMERS:
 CREATE POLICY "Owners can manage their customers." ON customers FOR ALL USING (

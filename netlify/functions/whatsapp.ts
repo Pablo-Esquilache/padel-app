@@ -80,12 +80,35 @@ export const handler: Handler = async (event) => {
         return { statusCode: 200, body: 'EVENT_RECEIVED' };
       }
 
+      const incomingPhoneId = value?.metadata?.phone_number_id; // ID del número receptor en WhatsApp
+      const senderPhoneId = incomingPhoneId || META_PHONE_ID; // Fallback por si acaso
+
       // --- EMPIEZA LA MAGIA DE LA IA ---
 
-      // A. Obtener datos base
-      const { data: courts } = await supabase.from('courts').select('id, name');
-      const { data: club } = await supabase.from('clubs').select('opening_hours, admin_phone').limit(1).single();
-      const { data: blockedTimes } = await supabase.from('blocked_times').select('*');
+      // A. Multi-Tenant: Identificar de qué club es este bot
+      const { data: clubMatches } = await supabase.from('clubs').select('id, name, opening_hours, admin_phone, whatsapp_phone_id');
+      
+      let club = null;
+      if (clubMatches && clubMatches.length === 1) {
+         // Transición: Si solo hay 1 club en la base (fase de pruebas), lo usamos directo.
+         club = clubMatches[0];
+      } else if (clubMatches && incomingPhoneId) {
+         // Multi-Tenant Real: Buscamos el club al que pertenece este número de WhatsApp.
+         club = clubMatches.find((c: any) => c.whatsapp_phone_id === incomingPhoneId);
+      }
+
+      if (!club) {
+        console.error('Error Multi-Tenant: No se encontró club para el whatsapp_phone_id:', incomingPhoneId);
+        return { statusCode: 200, body: 'EVENT_RECEIVED' }; // Ignorar silenciosamente
+      }
+
+      // Filtrar las canchas y bloqueos EXCLUSIVAMENTE para este club
+      const { data: courts } = await supabase.from('courts').select('id, name').eq('club_id', club.id);
+      
+      const courtIds = courts?.map((c: any) => c.id) || [];
+      const { data: blockedTimes } = courtIds.length > 0 
+        ? await supabase.from('blocked_times').select('*').in('court_id', courtIds) 
+        : { data: [] };
       
       // HISTORIAL DE CONVERSACIÓN
       const { data: historyData } = await supabase
@@ -111,12 +134,15 @@ export const handler: Handler = async (event) => {
       const nextWeekArg = new Date(nowArg.getTime() + 7 * 24 * 3600 * 1000);
       const nextWeek = nextWeekArg.toISOString().split('T')[0];
 
-      const { data: bookings } = await supabase
-        .from('bookings')
-        .select('court_id, booking_date, start_time, end_time')
-        .gte('booking_date', today)
-        .lte('booking_date', nextWeek)
-        .eq('status', 'confirmed');
+      const { data: bookings } = courtIds.length > 0 
+        ? await supabase
+            .from('bookings')
+            .select('court_id, booking_date, start_time, end_time')
+            .gte('booking_date', today)
+            .lte('booking_date', nextWeek)
+            .eq('status', 'confirmed')
+            .in('court_id', courtIds)
+        : { data: [] };
         
       // ALGORITMO CLONADO DE LA WEB: Calcular turnos libres exactos
       const toMins = (timeStr: string) => {
@@ -374,7 +400,7 @@ export const handler: Handler = async (event) => {
       }
 
       // G. Enviar la respuesta vía Meta Cloud API
-      const metaUrl = `https://graph.facebook.com/v19.0/${META_PHONE_ID}/messages`;
+      const metaUrl = `https://graph.facebook.com/v19.0/${senderPhoneId}/messages`;
       
       const sendToMeta = async (phone: string, textOverride?: string) => {
         return fetch(metaUrl, {
