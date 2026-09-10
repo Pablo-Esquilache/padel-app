@@ -1,6 +1,7 @@
 import { Handler } from '@netlify/functions';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 // Inicializar Supabase usando la Service Role Key para permisos de administrador (bypassea RLS)
@@ -11,6 +12,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // Claves de Meta
 const META_TOKEN = process.env.META_ACCESS_TOKEN || '';
 const META_PHONE_ID = process.env.META_PHONE_ID || '';
+const META_APP_SECRET = process.env.META_APP_SECRET || '';
 const META_VERIFY_TOKEN = 'padelapp2026'; // Token inventado para verificar el webhook
 
 export const handler: Handler = async (event) => {
@@ -32,8 +34,22 @@ export const handler: Handler = async (event) => {
   // 2. Recepción de mensajes de WhatsApp (Petición POST)
   if (event.httpMethod === 'POST') {
     console.log('🔥 WEBHOOK RECIBIDO EN NETLIFY!');
+    
+    // VALIDACIÓN DE FIRMA (PATOVICA DE SEGURIDAD)
+    const signature = event.headers['x-hub-signature-256'] || event.headers['X-Hub-Signature-256'];
+    const bodyRaw = event.body || '';
+    
+    if (META_APP_SECRET && signature) {
+      const hmac = crypto.createHmac('sha256', META_APP_SECRET);
+      const digest = 'sha256=' + hmac.update(bodyRaw).digest('hex');
+      if (signature !== digest) {
+        console.error('Firma de Meta inválida. Bloqueando petición maliciosa.');
+        return { statusCode: 401, body: 'Invalid signature' };
+      }
+    }
+
     try {
-      const bodyParams = JSON.parse(event.body || '{}');
+      const bodyParams = JSON.parse(bodyRaw);
       console.log('Cuerpo del mensaje:', JSON.stringify(bodyParams, null, 2));
       
       // Validar que sea un mensaje de WhatsApp
