@@ -29,6 +29,23 @@ export default function Dashboard() {
   useEffect(() => {
     if (user) {
       loadDashboardData();
+      
+      // Suscribirse a cambios en tiempo real en la tabla bookings para el Dashboard
+      const channel = supabase
+        .channel('admin-bookings-changes')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'bookings' },
+          (payload) => {
+            console.log('Cambio detectado en turnos (admin):', payload);
+            loadDashboardData();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 
