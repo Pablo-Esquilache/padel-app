@@ -77,14 +77,21 @@ export default function ClubBooking() {
   };
 
   const loadBookings = async () => {
-    const courtIds = courts.map(c => c.id);
-    const { data } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('booking_date', selectedDate)
-      .eq('status', 'confirmed')
-      .in('court_id', courtIds);
-    setExistingBookings(data || []);
+    try {
+      const courtIds = courts.map((c: any) => c.id);
+      
+      const { data, error } = await supabase
+        .from('bookings_public')
+        .select('*')
+        .in('court_id', courtIds)
+        .eq('booking_date', selectedDate)
+        .eq('status', 'confirmed');
+      
+      if (error) throw error;
+      setExistingBookings(data || []);
+    } catch (err) {
+      console.error("Error loading bookings:", err);
+    }
   };
 
   const toMins = (timeStr: string) => {
@@ -208,20 +215,26 @@ export default function ClubBooking() {
   const handleCancelBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const validName = bookingToCancel.customer_name.trim().toLowerCase() === cancelData.name.trim().toLowerCase();
-    const validPhone = bookingToCancel.customer_phone.trim() === cancelData.phone.trim();
-    if (!validName || !validPhone) {
-      alert('Los datos no coinciden con los del titular de la reserva.');
-      setLoading(false);
-      return;
-    }
+
     try {
-      await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', bookingToCancel.id);
-      setShowCancelModal(false);
-      alert('Reserva cancelada exitosamente.');
-      loadBookings();
+      const { data: success, error } = await supabase.rpc('cancel_booking_secure', {
+        b_id: bookingToCancel.id,
+        c_name: cancelData.name,
+        c_phone: cancelData.phone
+      });
+
+      if (error) throw error;
+      
+      if (success) {
+        setSuccessMsg('Turno cancelado exitosamente');
+        setShowCancelModal(false);
+        loadBookings();
+      } else {
+        alert('Los datos no coinciden con los del titular de la reserva, o el turno ya no existe.');
+      }
     } catch (err) {
-      alert('Error al cancelar');
+      console.error(err);
+      alert('Error al cancelar el turno');
     } finally {
       setLoading(false);
     }
