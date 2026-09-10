@@ -13,7 +13,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const META_TOKEN = process.env.META_ACCESS_TOKEN || '';
 const META_PHONE_ID = process.env.META_PHONE_ID || '';
 const META_APP_SECRET = process.env.META_APP_SECRET || '';
-const META_VERIFY_TOKEN = 'padelapp2026'; // Token inventado para verificar el webhook
+const META_VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || 'padelapp2026';
 
 export const handler: Handler = async (event) => {
   // 1. Verificación del Webhook de Meta (Petición GET)
@@ -35,17 +35,21 @@ export const handler: Handler = async (event) => {
   if (event.httpMethod === 'POST') {
     console.log('🔥 WEBHOOK RECIBIDO EN NETLIFY!');
     
-    // VALIDACIÓN DE FIRMA (PATOVICA DE SEGURIDAD)
+    // VALIDACIÓN DE FIRMA (PATOVICA DE SEGURIDAD - FAIL CLOSED)
     const signature = event.headers['x-hub-signature-256'] || event.headers['X-Hub-Signature-256'];
     const bodyRaw = event.body || '';
     
-    if (META_APP_SECRET && signature) {
-      const hmac = crypto.createHmac('sha256', META_APP_SECRET);
-      const digest = 'sha256=' + hmac.update(bodyRaw).digest('hex');
-      if (signature !== digest) {
-        console.error('Firma de Meta inválida. Bloqueando petición maliciosa.');
-        return { statusCode: 401, body: 'Invalid signature' };
-      }
+    if (!META_APP_SECRET || !signature) {
+      console.error('Falta la firma de Meta o el secreto de la app. Bloqueando petición por seguridad.');
+      return { statusCode: 401, body: 'Missing signature or secret' };
+    }
+
+    const hmac = crypto.createHmac('sha256', META_APP_SECRET);
+    const digest = 'sha256=' + hmac.update(bodyRaw).digest('hex');
+    
+    if (signature !== digest) {
+      console.error('Firma de Meta inválida. Bloqueando petición maliciosa.');
+      return { statusCode: 401, body: 'Invalid signature' };
     }
 
     try {
@@ -262,25 +266,31 @@ export const handler: Handler = async (event) => {
         const [_, court_id, date, time, customer_name, match_type, customer_phone] = reserveMatch;
         responseText = cleanedResponseText; // Ocultar código
         
-        const cancellationCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-
-        const { error } = await supabase.from('bookings').insert([{
-          court_id,
-          booking_date: date,
-          start_time: time,
-          end_time: add90Mins(time),
-          customer_name: customer_name.trim(),
-          customer_phone: customer_phone.trim(),
-          match_type: match_type.trim(),
-          cancellation_code: cancellationCode,
-          status: 'confirmed'
-        }]);
-
-        if (error) {
-          console.error('Error DB Reserva:', error);
-          responseText = "Ups, hubo un choque en la base de datos y no pude guardar el turno.";
+        // Validación de seguridad (Server-side): ¿La IA alucinó una cancha que no existe?
+        if (!courts || !courts.some(c => c.id === court_id)) {
+          console.error('ALERTA: La IA intentó reservar en un court_id inválido:', court_id);
+          responseText = "Ups, hubo un pequeño error interno intentando procesar la cancha. ¿Me repites para cuándo querías?";
         } else {
-          actionSuccessful = true;
+          const cancellationCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+
+          const { error } = await supabase.from('bookings').insert([{
+            court_id,
+            booking_date: date,
+            start_time: time,
+            end_time: add90Mins(time),
+            customer_name: customer_name.trim(),
+            customer_phone: customer_phone.trim(),
+            match_type: match_type.trim(),
+            cancellation_code: cancellationCode,
+            status: 'confirmed'
+          }]);
+
+          if (error) {
+            console.error('Error DB Reserva (Posible doble booking interceptado):', error);
+            responseText = "Ese turno se acaba de ocupar. ¿Buscamos otro horario?";
+          } else {
+            actionSuccessful = true;
+          }
         }
       }
 
@@ -317,43 +327,49 @@ export const handler: Handler = async (event) => {
         const [_, court_id_nueva, old_date, old_time, new_date, new_time, customer_name, match_type, customer_phone] = modMatch;
         responseText = cleanedResponseText;
         
-        const phoneSuffix = customer_phone.trim().slice(-8);
-
-        // Primero cancelamos el viejo
-        const { data: cancelData, error: errorCancel } = await supabase
-          .from('bookings')
-          .update({ status: 'cancelled' })
-          .eq('booking_date', old_date)
-          .eq('start_time', old_time)
-          .ilike('customer_name', `%${customer_name.trim()}%`)
-          .ilike('customer_phone', `%${phoneSuffix}%`)
-          .eq('status', 'confirmed')
-          .select();
-          
-        if (!errorCancel && cancelData && cancelData.length > 0) {
-          // Si pudimos cancelar, insertamos el nuevo
-          const cancellationCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-          const { error: errorInsert } = await supabase.from('bookings').insert([{
-            court_id: court_id_nueva,
-            booking_date: new_date,
-            start_time: new_time,
-            end_time: add90Mins(new_time),
-            customer_name: customer_name.trim(),
-            customer_phone: customer_phone.trim(), // Guardamos el nuevo completo
-            match_type: match_type.trim(),
-            cancellation_code: cancellationCode,
-            status: 'confirmed'
-          }]);
-          
-          if (errorInsert) {
-             console.error('Error DB Modificar Insert:', errorInsert);
-             responseText = "Cancelé tu turno anterior pero el nuevo horario se acaba de ocupar. Hablemos para buscar otro.";
-          } else {
-             actionSuccessful = true;
-          }
+        // Validación de seguridad (Server-side): ¿La IA alucinó una cancha que no existe?
+        if (!courts || !courts.some(c => c.id === court_id_nueva)) {
+          console.error('ALERTA: La IA intentó modificar hacia un court_id inválido:', court_id_nueva);
+          responseText = "Ups, hubo un pequeño error procesando el nuevo horario. ¿Me confirmas qué día y hora querías?";
         } else {
-           console.error('Error DB Modificar Cancel:', errorCancel || '0 filas canceladas');
-           responseText = "Ups, no encontré el turno original a tu nombre para modificar. Revisa que el día y horario sean correctos.";
+          const phoneSuffix = customer_phone.trim().slice(-8);
+
+          // Primero cancelamos el viejo
+          const { data: cancelData, error: errorCancel } = await supabase
+            .from('bookings')
+            .update({ status: 'cancelled' })
+            .eq('booking_date', old_date)
+            .eq('start_time', old_time)
+            .ilike('customer_name', `%${customer_name.trim()}%`)
+            .ilike('customer_phone', `%${phoneSuffix}%`)
+            .eq('status', 'confirmed')
+            .select();
+            
+          if (!errorCancel && cancelData && cancelData.length > 0) {
+            // Si pudimos cancelar, insertamos el nuevo
+            const cancellationCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+            const { error: errorInsert } = await supabase.from('bookings').insert([{
+              court_id: court_id_nueva,
+              booking_date: new_date,
+              start_time: new_time,
+              end_time: add90Mins(new_time),
+              customer_name: customer_name.trim(),
+              customer_phone: customer_phone.trim(), // Guardamos el nuevo completo
+              match_type: match_type.trim(),
+              cancellation_code: cancellationCode,
+              status: 'confirmed'
+            }]);
+            
+            if (errorInsert) {
+               console.error('Error DB Modificar Insert (Posible doble booking interceptado):', errorInsert);
+               responseText = "Cancelé tu turno anterior pero el nuevo horario se acaba de ocupar en este milisegundo. Hablemos para buscar otro.";
+            } else {
+               actionSuccessful = true;
+            }
+          } else {
+             console.error('Error DB Modificar Cancel:', errorCancel || '0 filas canceladas');
+             responseText = "Ups, no encontré el turno original a tu nombre para modificar. Revisa que el día y horario sean correctos.";
+          }
         }
       }
 
