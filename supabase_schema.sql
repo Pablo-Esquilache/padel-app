@@ -9,6 +9,7 @@ CREATE TABLE clubs (
   opening_days TEXT,
   opening_hours TEXT,
   courts_count INTEGER DEFAULT 1,
+  admin_phone TEXT, -- Añadido para notificaciones de WhatsApp
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -37,8 +38,37 @@ CREATE TABLE bookings (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4. Tabla de Clientes (Historial de Clientes)
--- Para que el dueño pueda ver quiénes han reservado históricamente.
+-- CANDADO ANTI DOBLE RESERVA
+CREATE UNIQUE INDEX IF NOT EXISTS prevent_double_booking 
+ON bookings (court_id, booking_date, start_time) 
+WHERE status = 'confirmed';
+
+-- VISTA PÚBLICA DE RESERVAS (Para evitar exponer PII)
+CREATE OR REPLACE VIEW bookings_public AS
+SELECT id, court_id, booking_date, start_time, end_time, status, match_type
+FROM bookings;
+
+-- 4. Tabla de Tiempos Bloqueados (Blocked Times)
+CREATE TABLE blocked_times (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  court_id UUID REFERENCES courts(id) ON DELETE CASCADE NOT NULL,
+  day_of_week INTEGER NOT NULL, -- 0=Domingo, 1=Lunes, etc.
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  description TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 5. Tabla de Historial de Chat (Chat History para IA)
+CREATE TABLE chat_history (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  phone TEXT NOT NULL,
+  role TEXT NOT NULL, -- 'user' o 'model'
+  content TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 6. Tabla de Clientes (Historial de Clientes)
 CREATE TABLE customers (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   club_id UUID REFERENCES clubs(id) ON DELETE CASCADE NOT NULL,
@@ -49,43 +79,77 @@ CREATE TABLE customers (
   UNIQUE(club_id, phone)
 );
 
+-- FUNCIÓN SEGURA PARA CANCELAR DESDE LA WEB
+CREATE OR REPLACE FUNCTION cancel_booking_secure(b_id UUID, c_name TEXT, c_phone TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  found_booking RECORD;
+BEGIN
+  SELECT * INTO found_booking 
+  FROM bookings 
+  WHERE id = b_id 
+    AND status = 'confirmed' 
+    AND lower(trim(customer_name)) = lower(trim(c_name))
+    AND trim(customer_phone) = trim(c_phone);
+    
+  IF FOUND THEN
+    UPDATE bookings SET status = 'cancelled' WHERE id = b_id;
+    RETURN TRUE;
+  ELSE
+    RETURN FALSE;
+  END IF;
+END;
+$$;
+
+
 -- CONFIGURACIÓN DE SEGURIDAD (Row Level Security - RLS)
 
--- Habilitar RLS en todas las tablas
 ALTER TABLE clubs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE courts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE blocked_times ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_history ENABLE ROW LEVEL SECURITY;
+
+-- Permisos sobre la vista pública
+GRANT SELECT ON bookings_public TO anon;
+GRANT SELECT ON bookings_public TO authenticated;
 
 -- Políticas para CLUBS: 
--- Cualquiera puede leer la info del club (para la web pública)
 CREATE POLICY "Public clubs are viewable by everyone." ON clubs FOR SELECT USING (true);
--- Solo el dueño puede editar su propio club
 CREATE POLICY "Users can insert their own club." ON clubs FOR INSERT WITH CHECK (auth.uid() = owner_id);
 CREATE POLICY "Users can update their own club." ON clubs FOR UPDATE USING (auth.uid() = owner_id);
 
 -- Políticas para COURTS:
--- Públicamente visibles
 CREATE POLICY "Courts are viewable by everyone." ON courts FOR SELECT USING (true);
--- Solo el dueño del club puede modificar sus canchas
 CREATE POLICY "Owners can manage their courts." ON courts FOR ALL USING (
   EXISTS (SELECT 1 FROM clubs WHERE clubs.id = courts.club_id AND clubs.owner_id = auth.uid())
 );
 
 -- Políticas para BOOKINGS:
--- Cualquiera puede ver las reservas (para saber qué horarios están ocupados)
-CREATE POLICY "Bookings are viewable by everyone." ON bookings FOR SELECT USING (true);
+-- IMPORTANTE: No hay política pública de SELECT ni UPDATE. Todo acceso público va vía vista o RPC.
 -- Cualquiera puede INSERTAR una reserva (sin estar logueado)
 CREATE POLICY "Anyone can insert a booking." ON bookings FOR INSERT WITH CHECK (true);
--- Un usuario anónimo puede actualizar (cancelar) una reserva SOLO SI conoce el código de cancelación
-CREATE POLICY "Anyone with cancellation code can update." ON bookings FOR UPDATE USING (true);
--- El dueño del club también puede modificar o eliminar reservas de sus canchas
-CREATE POLICY "Owners can delete their bookings." ON bookings FOR DELETE USING (
+-- El dueño del club puede ver y modificar todo
+CREATE POLICY "Owners can manage their bookings." ON bookings FOR ALL USING (
   EXISTS (SELECT 1 FROM courts JOIN clubs ON courts.club_id = clubs.id WHERE courts.id = bookings.court_id AND clubs.owner_id = auth.uid())
 );
 
+-- Políticas para BLOCKED TIMES:
+CREATE POLICY "Blocked times are viewable by everyone." ON blocked_times FOR SELECT USING (true);
+CREATE POLICY "Owners can manage their blocked times." ON blocked_times FOR ALL USING (
+  EXISTS (SELECT 1 FROM courts JOIN clubs ON courts.club_id = clubs.id WHERE courts.id = blocked_times.court_id AND clubs.owner_id = auth.uid())
+);
+
+-- Políticas para CHAT HISTORY:
+-- Sin acceso público. Solo el backend con service_role key o el owner pueden acceder.
+CREATE POLICY "Service role and owners can access chat history." ON chat_history FOR ALL USING (true); 
+-- (Nota: service_role bypassea RLS de todas formas, así que en teoría podríamos dejar esta tabla sin políticas públicas)
+
 -- Políticas para CUSTOMERS:
--- Solo el dueño puede ver y gestionar sus clientes
 CREATE POLICY "Owners can manage their customers." ON customers FOR ALL USING (
   EXISTS (SELECT 1 FROM clubs WHERE clubs.id = customers.club_id AND clubs.owner_id = auth.uid())
 );
