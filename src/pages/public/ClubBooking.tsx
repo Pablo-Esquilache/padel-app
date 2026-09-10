@@ -41,7 +41,26 @@ export default function ClubBooking() {
   }, [id]);
 
   useEffect(() => {
-    if (courts.length > 0) loadBookings();
+    if (courts.length > 0) {
+      loadBookings();
+
+      // Suscribirse a cambios en tiempo real en la tabla bookings
+      const channel = supabase
+        .channel('public-bookings-changes')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'bookings' },
+          (payload) => {
+            console.log('Cambio detectado en turnos:', payload);
+            loadBookings();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, [selectedDate, courts]);
 
   const loadClubData = async () => {
