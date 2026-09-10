@@ -199,7 +199,7 @@ export default function Dashboard() {
     // Usamos el origin real (localhost o netlify)
     const publicUrl = `${window.location.origin}/club/${club?.id}`;
     text += `👉 *Reserva online acá:*%0A${publicUrl}%0A%0A`;
-    text += `🤖 *O háblale a nuestro Bot:*%0Awa.me/5491112345678 (11 1234-5678)`;
+    text += `🤖 *O háblale a nuestro Bot:*%0Awa.me/5491123556426 (11 2355-6426)`;
     
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
