@@ -9,8 +9,9 @@ CREATE TABLE clubs (
   opening_days TEXT,
   opening_hours TEXT,
   courts_count INTEGER DEFAULT 1,
-  admin_phone TEXT, -- Añadido para notificaciones de WhatsApp
+  admin_phone TEXT, -- Añadido para notificaciones de WhatsApp y contacto público
   whatsapp_phone_id TEXT, -- Identificador de Meta para ruteo Multi-Tenant
+  bot_phone TEXT, -- Teléfono público del Bot para armar links de wa.me
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

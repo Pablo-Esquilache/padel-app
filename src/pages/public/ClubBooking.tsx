@@ -259,7 +259,10 @@ export default function ClubBooking() {
             <Link to="/" className="text-slate-500 hover:text-slate-900 mr-4"><ArrowLeft className="h-5 w-5" /></Link>
             <div>
               <h1 className="text-2xl font-bold text-slate-900">{club.name}</h1>
-              <p className="text-sm text-slate-500">{club.location} • Horario: {club.opening_hours}</p>
+              <p className="text-sm text-slate-500">
+                {club.location} • Horario: {club.opening_hours} 
+                {club.admin_phone && <span> • 📞 {club.admin_phone}</span>}
+              </p>
             </div>
           </div>
         </header>
