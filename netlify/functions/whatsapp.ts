@@ -240,9 +240,9 @@ export const handler: Handler = async (event) => {
       
       4. CREAR UNA RESERVA
       - Necesitas 4 datos: Día, Hora exacta de la lista, Nombre y Tipo (Masculino/Femenino/Mixto).
-      - EL TELÉFONO DEL CLIENTE ES: ${fromPhone}. Úsalo internamente, NUNCA se lo preguntes.
-      - Si faltan datos, NO reserves. Pide SOLAMENTE el dato que falte.
-      - Una vez confirmado, tu respuesta DEBE terminar con: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM|Nombre|Tipo|${fromPhone}]
+        - EL TELÉFONO DEL CLIENTE ES: ${fromPhone}. Úsalo internamente, NUNCA se lo preguntes.
+        - Si faltan datos para reservar, NO reserves. Pide TODOS los datos que falten en un solo mensaje para no hacer larga la charla.
+        - Una vez confirmado, tu respuesta DEBE terminar con: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM|Nombre|Tipo|${fromPhone}]
       
       5. CONSULTAR TURNOS PROPIOS
       - Si preguntan "¿Qué turno tengo?", ya no puedes buscarlo tú mismo, indícales que no puedes revisar turnos pasados ni propios por ahora, solo agendar nuevos.
