@@ -16,6 +16,10 @@ export default function Dashboard() {
   const [blockedTimes, setBlockedTimes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+
   // States para Formularios
   const [phoneForm, setPhoneForm] = useState('');
   
@@ -400,38 +404,68 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {bookings.map((b) => {
-                    const [y, m, d] = b.booking_date.split('-');
-                    const isPast = new Date(`${b.booking_date}T${b.start_time}`) < new Date();
+                  {(() => {
+                    const totalPages = Math.ceil(bookings.length / ITEMS_PER_PAGE);
+                    const paginatedBookings = bookings.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
                     
-                    return (
-                      <tr key={b.id} className={`border-b last:border-0 hover:bg-slate-50 ${isPast && b.status === 'confirmed' ? 'opacity-50 grayscale bg-slate-50' : ''}`}>
-                        <td className="p-4 text-sm font-medium">{`${d}/${m}/${y}`}</td>
-                        <td className="p-4 text-sm">{b.start_time.slice(0,5)} - {b.end_time.slice(0,5)}</td>
-                        <td className="p-4 text-sm">{courts.find(c => c.id === b.court_id)?.name}</td>
-                        <td className="p-4 text-sm font-medium">{b.customer_name}</td>
-                        <td className="p-4 text-sm">{b.customer_phone}</td>
-                        <td className="p-4 text-sm">{b.match_type}</td>
-                        <td className="p-4 text-sm">
-                          {b.status === 'cancelled' ? (
-                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Cancelado</span>
-                          ) : isPast ? (
-                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-200 text-slate-700">Finalizado</span>
-                          ) : (
-                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Confirmado</span>
-                          )}
-                        </td>
-                        <td className="p-4 text-sm">
-                          {b.status === 'confirmed' && !isPast && (
-                            <button onClick={() => handleCancelBooking(b.id)} className="text-red-500 hover:text-red-700"><Trash2 className="h-4 w-4" /></button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                    return paginatedBookings.map((b) => {
+                      const [y, m, d] = b.booking_date.split('-');
+                      const isPast = new Date(`${b.booking_date}T${b.start_time}`) < new Date();
+                      
+                      return (
+                        <tr key={b.id} className={`border-b last:border-0 hover:bg-slate-50 ${isPast && b.status === 'confirmed' ? 'opacity-50 grayscale bg-slate-50' : ''}`}>
+                          <td className="p-4 text-sm font-medium">{`${d}/${m}/${y}`}</td>
+                          <td className="p-4 text-sm">{b.start_time.slice(0,5)} - {b.end_time.slice(0,5)}</td>
+                          <td className="p-4 text-sm">{courts.find(c => c.id === b.court_id)?.name}</td>
+                          <td className="p-4 text-sm font-medium">{b.customer_name}</td>
+                          <td className="p-4 text-sm">{b.customer_phone}</td>
+                          <td className="p-4 text-sm">{b.match_type}</td>
+                          <td className="p-4 text-sm">
+                            {b.status === 'cancelled' ? (
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Cancelado</span>
+                            ) : isPast ? (
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-200 text-slate-700">Finalizado</span>
+                            ) : (
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Confirmado</span>
+                            )}
+                          </td>
+                          <td className="p-4 text-sm">
+                            {b.status === 'confirmed' && !isPast && (
+                              <button onClick={() => handleCancelBooking(b.id)} className="text-red-500 hover:text-red-700"><Trash2 className="h-4 w-4" /></button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
                 </tbody>
               </table>
             </div>
+            
+            {/* Controles de Paginación */}
+            {bookings.length > ITEMS_PER_PAGE && (
+              <div className="flex items-center justify-between px-6 py-3 border-t border-slate-200 bg-slate-50">
+                <span className="text-sm text-slate-500">
+                  Mostrando {(currentPage - 1) * ITEMS_PER_PAGE + 1} a {Math.min(currentPage * ITEMS_PER_PAGE, bookings.length)} de {bookings.length} turnos
+                </span>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 border rounded-md text-sm font-medium bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Anterior
+                  </button>
+                  <button 
+                    onClick={() => setCurrentPage(p => Math.min(Math.ceil(bookings.length / ITEMS_PER_PAGE), p + 1))}
+                    disabled={currentPage >= Math.ceil(bookings.length / ITEMS_PER_PAGE)}
+                    className="px-3 py-1 border rounded-md text-sm font-medium bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
