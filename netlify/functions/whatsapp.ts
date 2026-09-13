@@ -102,10 +102,70 @@ export const handler: Handler = async (event) => {
         return { statusCode: 200, body: 'EVENT_RECEIVED' }; // Ignorar silenciosamente
       }
 
-      // Filtrar las canchas y bloqueos EXCLUSIVAMENTE para este club
+      // --- B. REGLAS DE SEGURIDAD (ANTI-TROLL) ---
+      const sendWarning = async (text: string) => {
+        const url = `https://graph.facebook.com/v19.0/${senderPhoneId}/messages`;
+        const send = (p: string) => fetch(url, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${META_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messaging_product: 'whatsapp', to: p, type: 'text', text: { body: text } })
+        });
+        let res = await send(fromPhone);
+        if (!res.ok) {
+           let err = await res.text();
+           if (err.includes('131030') && fromPhone.startsWith('549')) {
+             let alt = fromPhone.replace(/^549/, '54');
+             if (fromPhone === '5492355642628') alt = '54235515642628';
+             await send(alt);
+           }
+        }
+      };
+
+      // 1. Spam de Mensajes (Flood Control)
+      const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      const { count: msgCount } = await supabase.from('chat_history')
+        .select('*', { count: 'exact', head: true })
+        .eq('phone', fromPhone).eq('club_id', club.id).gte('created_at', tenMinsAgo);
+        
+      if (msgCount && msgCount >= 15) {
+        await sendWarning("Has superado el límite de mensajes permitidos en corto tiempo. Por favor, continúa tu gestión de turnos directamente en nuestra web oficial.");
+        return { statusCode: 200, body: 'EVENT_RECEIVED' };
+      }
+
+      const nowArgSafe = new Date(new Date().getTime() - 3 * 3600 * 1000);
+      const todayStr = nowArgSafe.toISOString().split('T')[0];
+      const pSuffix = fromPhone.replace(/\D/g, '').slice(-8);
+
       const { data: courts } = await supabase.from('courts').select('id, name').eq('club_id', club.id);
-      
       const courtIds = courts?.map((c: any) => c.id) || [];
+
+      if (courtIds.length > 0) {
+        // 2. Bucle de Cancelaciones (3 o más)
+        const { count: cancelCount } = await supabase.from('bookings')
+          .select('*', { count: 'exact', head: true })
+          .in('court_id', courtIds)
+          .ilike('customer_phone', `%${pSuffix}%`)
+          .eq('status', 'cancelled')
+          .gte('booking_date', todayStr);
+          
+        if (cancelCount && cancelCount >= 3) {
+          await sendWarning("Hemos detectado múltiples cancelaciones a tu nombre. Para proteger los horarios del club, tu acceso a reservas por chat ha sido pausado. Continúa desde la web oficial.");
+          return { statusCode: 200, body: 'EVENT_RECEIVED' };
+        }
+
+        // 3. Límite de Turnos Fantasma (Máximo 4)
+        const { count: activeCount } = await supabase.from('bookings')
+          .select('*', { count: 'exact', head: true })
+          .in('court_id', courtIds)
+          .ilike('customer_phone', `%${pSuffix}%`)
+          .eq('status', 'confirmed')
+          .gte('booking_date', todayStr);
+
+        if (activeCount && activeCount >= 4) {
+          await sendWarning("Ya tienes 4 turnos vigentes reservados. Has alcanzado el límite máximo por chat. Si necesitas organizar un torneo o gestionar más turnos, hazlo desde la web.");
+          return { statusCode: 200, body: 'EVENT_RECEIVED' };
+        }
+      }
       const { data: blockedTimes } = courtIds.length > 0 
         ? await supabase.from('blocked_times').select('*').in('court_id', courtIds) 
         : { data: [] };
@@ -258,6 +318,9 @@ export const handler: Handler = async (event) => {
       
       8. TICKET DE RESUMEN (¡IMPORTANTE!)
       - Cada vez que emitas un código secreto (RESERVAR, CANCELAR o MODIFICAR), INCLUYE SIEMPRE en tu mensaje un "Ticket de Resumen" con viñetas detallando los datos de la operación para tranquilidad del cliente.
+
+      9. SEGURIDAD Y ANTI-TROLL
+      - Si detectas que el usuario está bromeando, usando lenguaje ofensivo, o dando vueltas pidiendo reservar y cancelar sin sentido, CORTA la conversación inmediatamente. Responde únicamente: "He detectado un comportamiento inusual. Para seguir gestionando tus turnos, por favor ingresa a nuestra página web oficial." y NO emitas ningún código secreto.
 
       HISTORIAL RECIENTE DE LA CONVERSACIÓN:
       ${historyText || '(No hay mensajes previos)'}
