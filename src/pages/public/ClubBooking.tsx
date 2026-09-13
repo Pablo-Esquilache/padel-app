@@ -175,14 +175,27 @@ export default function ClubBooking() {
     try {
       const formattedDate = date.split('-').reverse().join('/');
       
+      const payloadBase = {
+        templateName: '',
+        variables: [],
+        senderPhoneId: club?.whatsapp_phone_id,
+        // Campos para validación de seguridad en el backend
+        validation: {
+          clubId: club?.id,
+          customerPhone: phone,
+          bookingDate: date,
+          bookingTime: time
+        }
+      };
+
       // Avisar al cliente
       fetch('/.netlify/functions/notify', {
         method: 'POST',
         body: JSON.stringify({
+          ...payloadBase,
           phone: phone,
           templateName: 'aviso_cliente',
-          variables: [name, formattedDate, time, type],
-          senderPhoneId: club?.whatsapp_phone_id
+          variables: [name, formattedDate, time, type]
         })
       });
 
@@ -191,10 +204,10 @@ export default function ClubBooking() {
         fetch('/.netlify/functions/notify', {
           method: 'POST',
           body: JSON.stringify({
+            ...payloadBase,
             phone: club.admin_phone,
             templateName: 'aviso_admin',
-            variables: [name, type, formattedDate, time],
-            senderPhoneId: club?.whatsapp_phone_id
+            variables: [name, type, formattedDate, time]
           })
         });
       }

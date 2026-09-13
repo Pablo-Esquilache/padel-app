@@ -1,12 +1,19 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isIOS, setIsIOS] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
+    // Si el usuario cerró el banner antes, no lo mostramos más
+    if (localStorage.getItem('installDismissed') === 'true') {
+      return;
+    }
+
     // Detectar si ya está instalada o estamos en standalone
     const standalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
     setIsStandalone(standalone);
@@ -47,7 +54,15 @@ export default function InstallPrompt() {
     }
   };
 
-  if (!showPrompt || isStandalone) return null;
+  const handleDismiss = () => {
+    localStorage.setItem('installDismissed', 'true');
+    setShowPrompt(false);
+  };
+
+  // No mostrar en el panel de admin ni si ya está instalado/descartado
+  if (!showPrompt || isStandalone || location.pathname.startsWith('/admin')) {
+    return null;
+  }
 
   return (
     <div className="fixed bottom-0 left-0 right-0 p-4 z-50 animate-fade-in-up">
@@ -77,7 +92,7 @@ export default function InstallPrompt() {
 
             <div className="mt-3 flex gap-2 justify-end">
               <button 
-                onClick={() => setShowPrompt(false)} 
+                onClick={handleDismiss} 
                 className="px-3 py-1.5 text-sm font-medium text-slate-400 hover:text-white transition-colors"
               >
                 Cerrar

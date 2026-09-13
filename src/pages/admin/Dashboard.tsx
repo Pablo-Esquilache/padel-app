@@ -146,7 +146,13 @@ export default function Dashboard() {
           phone: phone,
           templateName: 'aviso_cliente',
           variables: [name, formattedDate, time, type],
-          senderPhoneId: club?.whatsapp_phone_id
+          senderPhoneId: club?.whatsapp_phone_id,
+          validation: {
+            clubId: club?.id,
+            customerPhone: phone,
+            bookingDate: date,
+            bookingTime: time
+          }
         })
       });
     } catch (e) {
@@ -379,7 +385,7 @@ export default function Dashboard() {
             <p className="text-sm text-slate-500">Panel de Administración</p>
           </div>
           <div className="flex gap-4">
-            <button onClick={generateWhatsAppMessage} className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md font-medium text-sm">
+            <button onClick={generateWhatsAppMessage} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-medium text-sm">
               <Share2 className="h-4 w-4" /> Compartir
             </button>
             <button onClick={handleLogout} className="flex items-center gap-2 text-slate-500 hover:text-red-600 font-medium text-sm">
@@ -457,7 +463,7 @@ export default function Dashboard() {
                           </td>
                           <td className="p-4 text-sm">
                             {b.status === 'confirmed' && !isPast && (
-                              <button onClick={() => handleCancelBooking(b.id)} className="text-red-500 hover:text-red-700"><Trash2 className="h-4 w-4" /></button>
+                              <button aria-label="Cancelar turno" onClick={() => handleCancelBooking(b.id)} className="text-red-500 hover:text-red-700"><Trash2 className="h-4 w-4" /></button>
                             )}
                           </td>
                         </tr>
@@ -641,7 +647,7 @@ export default function Dashboard() {
                       <td className="p-4">{bt.start_time.slice(0,5)} - {bt.end_time.slice(0,5)}</td>
                       <td className="p-4">{courts.find(c=>c.id === bt.court_id)?.name}</td>
                       <td className="p-4">{bt.description}</td>
-                      <td className="p-4"><button onClick={()=>handleDeleteBlock(bt.id)} className="text-red-500"><Trash2 className="h-4 w-4"/></button></td>
+                      <td className="p-4"><button aria-label="Eliminar bloqueo" onClick={()=>handleDeleteBlock(bt.id)} className="text-red-500"><Trash2 className="h-4 w-4"/></button></td>
                     </tr>
                   ))}
                 </tbody>

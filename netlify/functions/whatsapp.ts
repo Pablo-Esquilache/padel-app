@@ -115,6 +115,7 @@ export const handler: Handler = async (event) => {
         .from('chat_history')
         .select('role, content')
         .eq('phone', fromPhone)
+        .eq('club_id', club.id)
         .order('created_at', { ascending: false })
         .limit(10);
       
@@ -124,7 +125,7 @@ export const handler: Handler = async (event) => {
         historyText = chronological.map(msg => `${msg.role === 'user' ? 'Cliente' : 'Tú'}: ${msg.content}`).join('\n');
       }
 
-      supabase.from('chat_history').insert([{ phone: fromPhone, role: 'user', content: messageText }]).then();
+      supabase.from('chat_history').insert([{ phone: fromPhone, role: 'user', content: messageText, club_id: club.id }]).then();
 
       // Obtener fecha y hora actual en Argentina (GMT-3)
       const nowArg = new Date(new Date().getTime() - 3 * 3600 * 1000);
@@ -271,7 +272,7 @@ export const handler: Handler = async (event) => {
 
       // Guardar la respuesta del modelo en el historial (antes de limpiar los códigos secretos para que lo recuerde? No, mejor lo que vio el cliente)
       let cleanedResponseText = responseText.replace(/\[RESERVAR.*\]/, '').replace(/\[CANCELAR.*\]/, '').replace(/\[MODIFICAR.*\]/, '').trim();
-      supabase.from('chat_history').insert([{ phone: fromPhone, role: 'model', content: cleanedResponseText }])
+      supabase.from('chat_history').insert([{ phone: fromPhone, role: 'model', content: cleanedResponseText, club_id: club.id }])
         .then(res => { if(res.error) console.error('Error guardando historial model:', res.error); });
 
       // Función helper para sumar 90 minutos
@@ -332,6 +333,7 @@ export const handler: Handler = async (event) => {
         const { data, error } = await supabase
           .from('bookings')
           .update({ status: 'cancelled' })
+          .in('court_id', courtIds)
           .eq('booking_date', date)
           .eq('start_time', time)
           .ilike('customer_name', `%${customer_name.trim()}%`)
@@ -364,6 +366,7 @@ export const handler: Handler = async (event) => {
           const { data: cancelData, error: errorCancel } = await supabase
             .from('bookings')
             .update({ status: 'cancelled' })
+            .in('court_id', courtIds)
             .eq('booking_date', old_date)
             .eq('start_time', old_time)
             .ilike('customer_name', `%${customer_name.trim()}%`)

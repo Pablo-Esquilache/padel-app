@@ -1,7 +1,14 @@
 import { Handler } from '@netlify/functions';
+import { createClient } from '@supabase/supabase-js';
 
 const META_TOKEN = process.env.META_ACCESS_TOKEN;
 const FALLBACK_SENDER_ID = process.env.META_PHONE_ID;
+const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+const ALLOWED_TEMPLATES = ['aviso_cliente', 'aviso_admin'];
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -21,10 +28,47 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    const { phone, templateName, variables, senderPhoneId } = JSON.parse(event.body || '{}');
+    const { phone, templateName, variables, senderPhoneId, validation } = JSON.parse(event.body || '{}');
 
-    if (!phone || !templateName || !variables) {
-      return { statusCode: 400, body: 'Faltan parámetros requeridos (phone, templateName, variables)' };
+    if (!phone || !templateName || !variables || !validation) {
+      return { statusCode: 400, body: 'Faltan parámetros requeridos (phone, templateName, variables, validation)' };
+    }
+
+    // 1. Validar lista blanca de plantillas
+    if (!ALLOWED_TEMPLATES.includes(templateName)) {
+      return { statusCode: 403, body: 'Plantilla no permitida' };
+    }
+
+    // 2. Validar que exista la reserva en Supabase (Rate-limit implícito)
+    const { clubId, customerPhone, bookingDate, bookingTime } = validation;
+    if (!clubId || !customerPhone || !bookingDate || !bookingTime) {
+      return { statusCode: 400, body: 'Faltan parámetros de validación' };
+    }
+
+    // Obtenemos las canchas del club para poder filtrar las reservas
+    const { data: courts } = await supabase
+      .from('courts')
+      .select('id')
+      .eq('club_id', clubId);
+
+    if (!courts || courts.length === 0) {
+      return { statusCode: 403, body: 'Club no encontrado o sin canchas' };
+    }
+    const courtIds = courts.map(c => c.id);
+
+    // Buscar una reserva que coincida (puede estar confirmada o cancelada)
+    const { data: bookings, error: bookingError } = await supabase
+      .from('bookings')
+      .select('id')
+      .in('court_id', courtIds)
+      .eq('booking_date', bookingDate)
+      .like('start_time', `${bookingTime}%`)
+      .in('status', ['confirmed', 'cancelled'])
+      .limit(1);
+
+    if (bookingError || !bookings || bookings.length === 0) {
+      console.warn('Bloqueado intento de envío sin reserva válida:', validation);
+      return { statusCode: 403, body: 'Acceso denegado: No existe una reserva válida para autorizar este envío' };
     }
 
     const actualSenderId = senderPhoneId || FALLBACK_SENDER_ID;
@@ -36,7 +80,7 @@ export const handler: Handler = async (event) => {
 
     const metaUrl = `https://graph.facebook.com/v19.0/${actualSenderId}/messages`;
 
-    // Función helper para enviar a Meta con reintentos para números de Argentina (131030)
+    // Función helper para enviar a Meta con reintentos
     const sendTemplateToMeta = async (targetPhone: string) => {
       return fetch(metaUrl, {
         method: 'POST',
@@ -71,7 +115,6 @@ export const handler: Handler = async (event) => {
       const errorText = await metaResponse.text();
       console.error('ERROR AL ENVIAR PLANTILLA META:', errorText);
       
-      // Fallback para error de formato de número argentino
       if (errorText.includes('131030') && phone.startsWith('549')) {
         console.log('Detectado error 131030. Probando formato alternativo (sin 9)...');
         const phoneAlt = phone.replace(/^549/, '54');
