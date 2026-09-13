@@ -62,12 +62,13 @@ export const handler: Handler = async (event) => {
       .select('id')
       .in('court_id', courtIds)
       .eq('booking_date', bookingDate)
-      .like('start_time', `${bookingTime}%`)
+      .eq('start_time', bookingTime)
       .in('status', ['confirmed', 'cancelled'])
       .limit(1);
 
     if (bookingError || !bookings || bookings.length === 0) {
       console.warn('Bloqueado intento de envío sin reserva válida:', validation);
+      if (bookingError) console.error('Error de Supabase:', bookingError);
       return { statusCode: 403, body: 'Acceso denegado: No existe una reserva válida para autorizar este envío' };
     }
 
