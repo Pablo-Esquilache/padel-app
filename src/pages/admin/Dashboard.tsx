@@ -405,7 +405,6 @@ export default function Dashboard() {
                 </thead>
                 <tbody>
                   {(() => {
-                    const totalPages = Math.ceil(bookings.length / ITEMS_PER_PAGE);
                     const paginatedBookings = bookings.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
                     
                     return paginatedBookings.map((b) => {
