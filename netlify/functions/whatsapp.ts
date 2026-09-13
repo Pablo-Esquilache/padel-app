@@ -249,11 +249,11 @@ export const handler: Handler = async (event) => {
       - Si preguntan "¿Qué turno tengo?", ya no puedes buscarlo tú mismo, indícales que no puedes revisar turnos pasados ni propios por ahora, solo agendar nuevos.
       
       6. MODIFICAR UN TURNO
-      - Si piden cambiar un turno, pregunta qué día/hora lo tenían, y para cuándo lo quieren (revisando la lista). NO preguntes el teléfono.
+      - Si piden cambiar un turno, PREGUNTA EXPLÍCITAMENTE qué día y hora lo tenían, y para cuándo lo quieren. NUNCA asumas ni inventes el día y hora viejo. NO preguntes el teléfono.
       - Confirmado todo, tu respuesta DEBE terminar con: [MODIFICAR|id_de_cancha_nueva|fecha_vieja|hora_vieja|fecha_nueva|hora_nueva|Nombre|Tipo|${fromPhone}]
       
       7. CANCELAR UN TURNO
-      - Si piden cancelar, confirma su Nombre y Día/Hora del turno. NO preguntes el teléfono.
+      - Si piden cancelar, PREGUNTA EXPLÍCITAMENTE para qué Día y Hora era su turno. NUNCA asumas, inventes ni adivines el horario, incluso si el cliente dice "cancelame mi turno de hoy". Si no te dice la hora exacta, pregúntasela primero. NO preguntes el teléfono.
       - Confirmado todo, tu respuesta DEBE terminar con: [CANCELAR|YYYY-MM-DD|HH:MM|Nombre|${fromPhone}]
       
       8. TICKET DE RESUMEN (¡IMPORTANTE!)
@@ -328,7 +328,7 @@ export const handler: Handler = async (event) => {
         responseText = cleanedResponseText;
         
         // Relajar el chequeo del teléfono buscando solo los últimos 8 dígitos (por si en la web lo escribieron sin prefijo)
-        const phoneSuffix = customer_phone.trim().slice(-8);
+        const phoneSuffix = customer_phone.trim().replace(/\D/g, '').slice(-8);
 
         const { data, error } = await supabase
           .from('bookings')
@@ -360,7 +360,7 @@ export const handler: Handler = async (event) => {
           console.error('ALERTA: La IA intentó modificar hacia un court_id inválido:', court_id_nueva);
           responseText = "Ups, hubo un pequeño error procesando el nuevo horario. ¿Me confirmas qué día y hora querías?";
         } else {
-          const phoneSuffix = customer_phone.trim().slice(-8);
+          const phoneSuffix = customer_phone.trim().replace(/\D/g, '').slice(-8);
 
           // Primero cancelamos el viejo
           const { data: cancelData, error: errorCancel } = await supabase

@@ -109,15 +109,19 @@ export const handler: Handler = async (event) => {
       });
     };
 
-    let metaResponse = await sendTemplateToMeta(phone);
+    let cleanPhone = phone.replace(/\D/g, '');
+    if (!cleanPhone.startsWith('54')) {
+      cleanPhone = '549' + cleanPhone;
+    }
+    let metaResponse = await sendTemplateToMeta(cleanPhone);
     
     if (!metaResponse.ok) {
       const errorText = await metaResponse.text();
       console.error('ERROR AL ENVIAR PLANTILLA META:', errorText);
-      
-      if (errorText.includes('131030') && phone.startsWith('549')) {
+      // Fallback para error de formato de número argentino
+      if (errorText.includes('131030') && cleanPhone.startsWith('549')) {
         console.log('Detectado error 131030. Probando formato alternativo (sin 9)...');
-        const phoneAlt = phone.replace(/^549/, '54');
+        const phoneAlt = cleanPhone.replace(/^549/, '54');
         metaResponse = await sendTemplateToMeta(phoneAlt);
         
         if (!metaResponse.ok) {
