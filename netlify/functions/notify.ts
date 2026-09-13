@@ -57,12 +57,14 @@ export const handler: Handler = async (event) => {
     const courtIds = courts.map(c => c.id);
 
     // Buscar una reserva que coincida (puede estar confirmada o cancelada)
+    const phoneSuffix = customerPhone.replace(/\D/g, '').slice(-8);
     const { data: bookings, error: bookingError } = await supabase
       .from('bookings')
-      .select('id')
+      .select('id, customer_phone')
       .in('court_id', courtIds)
       .eq('booking_date', bookingDate)
       .eq('start_time', bookingTime)
+      .ilike('customer_phone', `%${phoneSuffix}%`)
       .in('status', ['confirmed', 'cancelled'])
       .limit(1);
 
@@ -70,6 +72,11 @@ export const handler: Handler = async (event) => {
       console.warn('Bloqueado intento de envío sin reserva válida:', validation);
       if (bookingError) console.error('Error de Supabase:', bookingError);
       return { statusCode: 403, body: 'Acceso denegado: No existe una reserva válida para autorizar este envío' };
+    }
+
+    let finalPhone = phone;
+    if (templateName === 'aviso_cliente') {
+      finalPhone = bookings[0].customer_phone;
     }
 
     const actualSenderId = senderPhoneId || FALLBACK_SENDER_ID;
@@ -110,7 +117,7 @@ export const handler: Handler = async (event) => {
       });
     };
 
-    let cleanPhone = phone.replace(/\D/g, '');
+    let cleanPhone = finalPhone.replace(/\D/g, '');
     if (!cleanPhone.startsWith('54')) {
       cleanPhone = '549' + cleanPhone;
     }
