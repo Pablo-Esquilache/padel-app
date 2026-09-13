@@ -6,6 +6,7 @@ import Onboarding from './pages/admin/Onboarding';
 import Dashboard from './pages/admin/Dashboard';
 import Home from './pages/public/Home';
 import ClubBooking from './pages/public/ClubBooking';
+import InstallPrompt from './components/InstallPrompt';
 
 // Rutas protegidas para el administrador
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
@@ -17,23 +18,26 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
 
 function App() {
   return (
-    <Routes>
-      {/* Rutas Públicas de Cliente */}
-      <Route path="/" element={<Home />} />
-      <Route path="/reserva/:id" element={<ClubBooking />} />
+    <>
+      <Routes>
+        {/* Rutas Públicas de Cliente */}
+        <Route path="/" element={<Home />} />
+        <Route path="/reserva/:id" element={<ClubBooking />} />
 
-      {/* Rutas de Administrador - Públicas */}
-      <Route path="/admin" element={<Login />} />
-      <Route path="/admin/register" element={<Register />} />
+        {/* Rutas de Administrador - Públicas */}
+        <Route path="/admin" element={<Login />} />
+        <Route path="/admin/register" element={<Register />} />
 
-      {/* Rutas de Administrador - Privadas */}
-      <Route path="/admin/onboarding" element={
-        <AdminRoute><Onboarding /></AdminRoute>
-      } />
-      <Route path="/admin/dashboard" element={
-        <AdminRoute><Dashboard /></AdminRoute>
-      } />
-    </Routes>
+        {/* Rutas de Administrador - Privadas */}
+        <Route path="/admin/onboarding" element={
+          <AdminRoute><Onboarding /></AdminRoute>
+        } />
+        <Route path="/admin/dashboard" element={
+          <AdminRoute><Dashboard /></AdminRoute>
+        } />
+      </Routes>
+      <InstallPrompt />
+    </>
   );
 }
 
