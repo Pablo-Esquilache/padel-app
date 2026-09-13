@@ -284,7 +284,7 @@ export const handler: Handler = async (event) => {
       };
 
       // Bandera para saber si notificamos al admin
-      let actionSuccessful = false;
+      let adminNotificationData: any = null;
 
       // D. Leer si la IA decidió hacer una reserva
       const reserveMatch = responseText.match(/\[RESERVAR\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
@@ -315,7 +315,7 @@ export const handler: Handler = async (event) => {
             console.error('Error DB Reserva (Posible doble booking interceptado):', error);
             responseText = "Ese turno se acaba de ocupar. ¿Buscamos otro horario?";
           } else {
-            actionSuccessful = true;
+            adminNotificationData = { type: 'reservó', name: customer_name.trim(), date: date, time: time };
           }
         }
       }
@@ -343,7 +343,7 @@ export const handler: Handler = async (event) => {
            console.error('Error DB Cancelar:', error || '0 filas actualizadas');
            responseText = "Ups, no encontré ningún turno a tu nombre en ese horario para cancelar. Revisa los datos.";
         } else {
-           actionSuccessful = true;
+           adminNotificationData = { type: 'canceló', name: customer_name.trim(), date: date, time: time };
         }
       }
       
@@ -390,7 +390,7 @@ export const handler: Handler = async (event) => {
                console.error('Error DB Modificar Insert (Posible doble booking interceptado):', errorInsert);
                responseText = "Cancelé tu turno anterior pero el nuevo horario se acaba de ocupar en este milisegundo. Hablemos para buscar otro.";
             } else {
-               actionSuccessful = true;
+               adminNotificationData = { type: 'modificó', name: customer_name.trim(), date: new_date, time: new_time };
             }
           } else {
              console.error('Error DB Modificar Cancel:', errorCancel || '0 filas canceladas');
@@ -436,10 +436,52 @@ export const handler: Handler = async (event) => {
       await sendSafe(fromPhone, responseText);
       
       // 2. Enviar notificación Push al Administrador si hubo movimiento
-      if (actionSuccessful && club?.admin_phone) {
-         const adminMsg = `🚨 *Alerta del Sistema* 🚨\nUn cliente acaba de actualizar la agenda. Aquí tienes su resumen:\n\n${cleanedResponseText}`;
-         // El admin_phone guardado en la config ya debería incluir código de país, ej 549...
-         await sendSafe(club.admin_phone, adminMsg);
+      if (adminNotificationData && club?.admin_phone) {
+        const { type, name, date, time } = adminNotificationData;
+        const formattedDate = date.split('-').reverse().join('/');
+        
+        // Enviar plantilla en lugar de mensaje libre
+        const templatePayload = {
+          messaging_product: 'whatsapp',
+          to: club.admin_phone,
+          type: 'template',
+          template: {
+            name: 'aviso_admin',
+            language: { code: 'es_AR' },
+            components: [
+              {
+                type: 'body',
+                parameters: [
+                  { type: 'text', text: name },
+                  { type: 'text', text: type },
+                  { type: 'text', text: formattedDate },
+                  { type: 'text', text: time.slice(0, 5) }
+                ]
+              }
+            ]
+          }
+        };
+
+        const metaResponse = await fetch(metaUrl, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${META_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(templatePayload)
+        });
+
+        if (!metaResponse.ok) {
+          const errorText = await metaResponse.text();
+          console.error('ERROR ENVIANDO PLANTILLA AL ADMIN:', errorText);
+          
+          if (errorText.includes('131030') && club.admin_phone.startsWith('549')) {
+            const phoneAlt = club.admin_phone.replace(/^549/, '54');
+            templatePayload.to = phoneAlt;
+            await fetch(metaUrl, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${META_TOKEN}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify(templatePayload)
+            });
+          }
+        }
       }
 
       return { statusCode: 200, body: 'EVENT_RECEIVED' };

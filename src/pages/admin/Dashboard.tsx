@@ -137,10 +137,33 @@ export default function Dashboard() {
     navigate('/');
   };
 
+  const sendNotification = async (type: 'reservó' | 'canceló' | 'modificó', name: string, phone: string, date: string, time: string) => {
+    try {
+      const formattedDate = date.split('-').reverse().join('/');
+      fetch('/.netlify/functions/notify', {
+        method: 'POST',
+        body: JSON.stringify({
+          phone: phone,
+          templateName: 'aviso_cliente',
+          variables: [name, formattedDate, time, type],
+          senderPhoneId: club?.whatsapp_phone_id
+        })
+      });
+    } catch (e) {
+      console.error('Error enviando notificación', e);
+    }
+  };
+
   const handleCancelBooking = async (bookingId: string) => {
     if (!window.confirm('¿Estás seguro de cancelar este turno?')) return;
     const { error } = await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', bookingId);
-    if (!error) loadDashboardData();
+    if (!error) {
+      const b = bookings.find(x => x.id === bookingId);
+      if (b && b.customer_phone) {
+        sendNotification('canceló', b.customer_name, b.customer_phone, b.booking_date, b.start_time.slice(0,5));
+      }
+      loadDashboardData();
+    }
   };
 
   const generateWhatsAppMessage = () => {
@@ -330,6 +353,10 @@ export default function Dashboard() {
       
       supabase.from('customers').upsert([{ club_id: club.id, name: adminFormData.name.trim(), phone: adminFormData.phone.trim(), last_booking_date: selectedDate }], { onConflict: 'club_id,phone' }).then(() => {});
       
+      if (adminFormData.phone) {
+        sendNotification('reservó', adminFormData.name.trim(), adminFormData.phone.trim(), selectedDate, selectedSlot.start);
+      }
+
       setAdminSuccessMsg('Turno registrado correctamente');
       loadDashboardData();
     } catch (err) {

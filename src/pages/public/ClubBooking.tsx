@@ -171,6 +171,38 @@ export default function ClubBooking() {
     }
   };
 
+  const sendNotification = async (type: 'reservó' | 'canceló' | 'modificó', name: string, phone: string, date: string, time: string) => {
+    try {
+      const formattedDate = date.split('-').reverse().join('/');
+      
+      // Avisar al cliente
+      fetch('/.netlify/functions/notify', {
+        method: 'POST',
+        body: JSON.stringify({
+          phone: phone,
+          templateName: 'aviso_cliente',
+          variables: [name, formattedDate, time, type],
+          senderPhoneId: club?.whatsapp_phone_id
+        })
+      });
+
+      // Avisar al admin
+      if (club?.admin_phone) {
+        fetch('/.netlify/functions/notify', {
+          method: 'POST',
+          body: JSON.stringify({
+            phone: club.admin_phone,
+            templateName: 'aviso_admin',
+            variables: [name, type, formattedDate, time],
+            senderPhoneId: club?.whatsapp_phone_id
+          })
+        });
+      }
+    } catch (e) {
+      console.error('Error enviando notificaciones', e);
+    }
+  };
+
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -203,6 +235,9 @@ export default function ClubBooking() {
         last_booking_date: selectedDate
       }], { onConflict: 'club_id,phone' }).then(() => {});
 
+      // Disparar notificaciones en background
+      sendNotification('reservó', formData.name.trim(), formData.phone.trim(), selectedDate, selectedSlot.start);
+
       setSuccessMsg('¡Turno reservado exitosamente!');
       loadBookings();
     } catch (err) {
@@ -226,6 +261,9 @@ export default function ClubBooking() {
       if (error) throw error;
       
       if (success) {
+        // Disparar notificaciones en background
+        sendNotification('canceló', cancelData.name, cancelData.phone, bookingToCancel.booking_date, bookingToCancel.start_time.slice(0,5));
+
         setSuccessMsg('Turno cancelado exitosamente');
         setShowCancelModal(false);
         loadBookings();
