@@ -300,10 +300,11 @@ export const handler: Handler = async (event) => {
       - Canchas IDs (SOLO usar para el código secreto): ${JSON.stringify(courts)}
       
       4. CREAR UNA RESERVA
-      - Necesitas 4 datos: Día, Hora exacta de la lista, Nombre y Tipo (Masculino/Femenino/Mixto).
+      - Necesitas 4 datos EXPRESADOS EXPLÍCITAMENTE POR EL CLIENTE PARA EL TURNO ACTUAL: Día, Hora exacta de la lista, Nombre y Tipo (Masculino/Femenino/Mixto).
         - EL TELÉFONO DEL CLIENTE ES: ${fromPhone}. Úsalo internamente, NUNCA se lo preguntes.
-        - Si faltan datos para reservar, NO reserves. Pide TODOS los datos que falten en un solo mensaje para no hacer larga la charla.
-        - Una vez confirmado, tu respuesta DEBE terminar con: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM|Nombre|Tipo|${fromPhone}]
+      - REGLA DE AMNESIA: Si el cliente pide reservar un turno NUEVO, NUNCA asumas ni copies el "Nombre" o "Tipo" de turnos que figuren en el historial pasado. SIEMPRE vuelve a preguntarle a qué nombre y qué tipo de partido es la nueva reserva.
+      - Si faltan datos para reservar, NO reserves. Pide TODOS los datos que falten en un solo mensaje para no hacer larga la charla.
+      - Una vez confirmado, tu respuesta DEBE terminar con: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM|Nombre|Tipo|${fromPhone}]
       
       5. CONSULTAR TURNOS PROPIOS
       - Si preguntan "¿Qué turno tengo?", ya no puedes buscarlo tú mismo, indícales que no puedes revisar turnos pasados ni propios por ahora, solo agendar nuevos.
