@@ -119,7 +119,16 @@ export const handler: Handler = async (event) => {
 
     let cleanPhone = finalPhone.replace(/\D/g, '');
     if (!cleanPhone.startsWith('54')) {
-      cleanPhone = '549' + cleanPhone;
+      if (cleanPhone.length === 10) {
+        // HACK MODO DE PRUEBA SANDBOX: 
+        // Inyecta el "15" en el medio para que coincida exactamente con cómo lo registró Meta.
+        // Ej: 2355 642628 -> 54 2355 15 642628
+        const prefijo = cleanPhone.substring(0, 4);
+        const sufijo = cleanPhone.substring(4);
+        cleanPhone = `54${prefijo}15${sufijo}`;
+      } else {
+        cleanPhone = '549' + cleanPhone;
+      }
     }
     let metaResponse = await sendTemplateToMeta(cleanPhone);
     
