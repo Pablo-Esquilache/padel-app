@@ -316,7 +316,8 @@ export const handler: Handler = async (event) => {
       - Una vez confirmado todo, debes emitir el Ticket de Resumen y luego el código secreto: [RESERVAR|id_de_cancha|YYYY-MM-DD|HH:MM|Nombre|Tipo|${fromPhone}]
       
       5. CONSULTAR TURNOS PROPIOS
-      - Si preguntan "¿Qué turno tengo?", ya no puedes buscarlo tú mismo, indícales que no puedes revisar turnos pasados ni propios por ahora, solo agendar nuevos.
+      - Si el cliente pregunta "¿qué turno tengo?", o si quiere cancelar/modificar pero no recuerda el día u hora exacta, EMITE ÚNICAMENTE el código secreto: [CONSULTAR_TURNOS|${fromPhone}]
+      - No agregues ningún otro texto, solo el código. El sistema buscará en la base de datos y le responderá al cliente automáticamente.
       
       6. MODIFICAR UN TURNO
       - Si piden cambiar un turno, PREGUNTA EXPLÍCITAMENTE qué día y hora lo tenían, y para cuándo lo quieren. 
@@ -345,10 +346,38 @@ export const handler: Handler = async (event) => {
       const result = await model.generateContent(prompt);
       let responseText = result.response.text();
 
-      // Guardar la respuesta del modelo en el historial (antes de limpiar los códigos secretos para que lo recuerde? No, mejor lo que vio el cliente)
-      let cleanedResponseText = responseText.replace(/\[RESERVAR.*\]/, '').replace(/\[CANCELAR.*\]/, '').replace(/\[MODIFICAR.*\]/, '').trim();
+      // Guardar la respuesta del modelo en el historial
+      let cleanedResponseText = responseText.replace(/\[RESERVAR.*\]/, '').replace(/\[CANCELAR.*\]/, '').replace(/\[MODIFICAR.*\]/, '').replace(/\[CONSULTAR_TURNOS.*\]/, '').trim();
       supabase.from('chat_history').insert([{ phone: fromPhone, role: 'model', content: cleanedResponseText, club_id: club.id }])
         .then(res => { if(res.error) console.error('Error guardando historial model:', res.error); });
+
+      // C.1. Leer si la IA decidió CONSULTAR_TURNOS
+      const consultarMatch = responseText.match(/\[CONSULTAR_TURNOS\|([^\]]+)\]/);
+      if (consultarMatch) {
+        const [_, customer_phone] = consultarMatch;
+        const phoneSuffix = customer_phone.trim().replace(/\D/g, '').slice(-8);
+        const { data: myBookings, error: myErr } = await supabase
+          .from('bookings')
+          .select('booking_date, start_time, courts(name)')
+          .in('court_id', courts?.map(c => c.id) || [])
+          .ilike('customer_phone', `%${phoneSuffix}%`)
+          .eq('status', 'confirmed')
+          .gte('booking_date', todayStr)
+          .order('booking_date', { ascending: true })
+          .order('start_time', { ascending: true });
+
+        if (myErr) console.error('Error buscando turnos del cliente:', myErr);
+
+        if (!myBookings || myBookings.length === 0) {
+          responseText = "Revisé el sistema y no tenés turnos activos a tu nombre para los próximos días.";
+        } else {
+          const listTxt = myBookings.map(b => `- ${b.booking_date.split('-').reverse().join('/')} a las ${b.start_time.slice(0, 5)} hs en ${b.courts?.name}`).join('\n');
+          responseText = `Tus próximos turnos vigentes son:\n${listTxt}`;
+        }
+        
+        // Actualizamos cleanedResponseText para que se envíe el listado al cliente
+        cleanedResponseText = responseText;
+      }
 
       // Función helper para sumar 90 minutos
       const add90Mins = (timeStr: string) => {
