@@ -300,7 +300,8 @@ export default function ClubBooking() {
   const activeCourts = courts.filter(c => c.is_active !== false);
 
   return (
-    <div className="min-h-screen bg-slate-300/50 backdrop-blur-sm flex flex-col items-center py-8 px-4">
+    <>
+      <div className="min-h-screen bg-slate-300/50 backdrop-blur-sm flex flex-col items-center py-8 px-4">
       
       {/* Contenedor Principal (Tarjeta del 75%) */}
       <div className="w-full max-w-5xl bg-slate-50 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
@@ -410,6 +411,7 @@ export default function ClubBooking() {
           })()}
         </main>
       </div>
+      </div>
 
       {/* Modal de Reserva */}
       {showBookingModal && (
@@ -484,6 +486,6 @@ export default function ClubBooking() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
