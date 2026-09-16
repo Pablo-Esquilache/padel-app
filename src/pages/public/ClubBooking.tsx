@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, Calendar, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Calendar, AlertTriangle, MessageCircle } from 'lucide-react';
 
 export default function ClubBooking() {
   const { id } = useParams();
@@ -485,6 +485,19 @@ export default function ClubBooking() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Botón Flotante de WhatsApp */}
+      {club?.bot_phone && (
+        <a 
+          href={`https://wa.me/${club.bot_phone}?text=Hola,%20quiero%20consultar%20por%20un%20turno`}
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="fixed bottom-6 right-6 bg-[#25D366] text-white p-4 rounded-full shadow-2xl hover:bg-[#128C7E] hover:scale-110 transition-all z-40 flex items-center justify-center"
+          aria-label="Chatear por WhatsApp"
+        >
+          <MessageCircle className="h-7 w-7" />
+        </a>
       )}
     </>
   );
