@@ -125,15 +125,14 @@ export const handler: Handler = async (event) => {
       const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
       const { count: msgCount } = await supabase.from('chat_history')
         .select('*', { count: 'exact', head: true })
-        .eq('phone', fromPhone).eq('club_id', club.id).gte('created_at', tenMinsAgo);
+        .eq('phone', fromPhone).eq('club_id', club.id).eq('role', 'user').gte('created_at', tenMinsAgo);
         
       if (msgCount && msgCount >= 15) {
         await sendWarning("Has superado el límite de mensajes permitidos en corto tiempo. Por favor, continúa tu gestión de turnos directamente en nuestra web oficial.");
         return { statusCode: 200, body: 'EVENT_RECEIVED' };
       }
 
-      const nowArgSafe = new Date(new Date().getTime() - 3 * 3600 * 1000);
-      const todayStr = nowArgSafe.toISOString().split('T')[0];
+      const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
       const pSuffix = fromPhone.replace(/\D/g, '').slice(-8);
 
       const { data: courts } = await supabase.from('courts').select('id, name').eq('club_id', club.id);
