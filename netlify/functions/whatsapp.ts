@@ -139,32 +139,33 @@ export const handler: Handler = async (event) => {
       const { data: courts } = await supabase.from('courts').select('id, name').eq('club_id', club.id);
       const courtIds = courts?.map((c: any) => c.id) || [];
 
+      let activeCount = 0;
+
       if (courtIds.length > 0) {
-        // 2. Bucle de Cancelaciones (3 o más)
+        // 2. Bloqueo por Troll (3 o más cancelaciones en las últimas 24hs)
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const { count: cancelCount } = await supabase.from('bookings')
           .select('*', { count: 'exact', head: true })
           .in('court_id', courtIds)
           .ilike('customer_phone', `%${pSuffix}%`)
           .eq('status', 'cancelled')
-          .gte('booking_date', todayStr);
+          .eq('cancelled_by', 'cliente')
+          .gte('cancelled_at', oneDayAgo);
           
         if (cancelCount && cancelCount >= 3) {
-          await sendWarning("Hemos detectado múltiples cancelaciones a tu nombre. Para proteger los horarios del club, tu acceso a reservas por chat ha sido pausado. Continúa desde la web oficial.");
+          await sendWarning("Hemos detectado múltiples cancelaciones a tu nombre. Para proteger los horarios del club, tu acceso al chat ha sido bloqueado por 24 horas. Por favor, continúa desde la web oficial.");
           return { statusCode: 200, body: 'EVENT_RECEIVED' };
         }
 
-        // 3. Límite de Turnos Fantasma (Máximo 4)
-        const { count: activeCount } = await supabase.from('bookings')
+        // 3. Obtener cantidad de Turnos Activos para pasárselo a la IA
+        const { count: currentActive } = await supabase.from('bookings')
           .select('*', { count: 'exact', head: true })
           .in('court_id', courtIds)
           .ilike('customer_phone', `%${pSuffix}%`)
           .eq('status', 'confirmed')
           .gte('booking_date', todayStr);
-
-        if (activeCount && activeCount >= 4) {
-          await sendWarning("Ya tienes 4 turnos vigentes reservados. Has alcanzado el límite máximo por chat. Si necesitas organizar un torneo o gestionar más turnos, hazlo desde la web.");
-          return { statusCode: 200, body: 'EVENT_RECEIVED' };
-        }
+          
+        activeCount = currentActive || 0;
       }
       const { data: blockedTimes } = courtIds.length > 0 
         ? await supabase.from('blocked_times').select('*').in('court_id', courtIds) 
@@ -307,6 +308,7 @@ export const handler: Handler = async (event) => {
       - Canchas IDs (SOLO usar para el código secreto): ${JSON.stringify(courts)}
       
       4. CREAR UNA RESERVA
+      - LÍMITE DE RESERVAS ACTIVAS: Este cliente tiene actualmente ${activeCount} reservas vigentes. El límite máximo permitido es 4. Si el cliente pide reservar un turno nuevo y ya tiene 4 o más reservas, RECHAZA LA RESERVA, NO EMITAS NINGÚN CÓDIGO SECRETO y respóndele literalmente: "Ya tienes 4 turnos vigentes reservados. Has alcanzado el límite máximo por chat. Si necesitas organizar un torneo o gestionar más turnos, hazlo desde la web." (El cliente SÍ tiene permitido cancelar los turnos que ya tiene).
       - Necesitas 4 datos EXPRESADOS EXPLÍCITAMENTE POR EL CLIENTE PARA EL TURNO ACTUAL: Día, Hora exacta de la lista, Nombre y Tipo (Masculino/Femenino/Mixto).
         - El campo Tipo SOLO puede ser: Masculino, Femenino o Mixto. Traduce automáticamente términos como "varones" o "chicas".
         - EL TELÉFONO DEL CLIENTE ES: ${fromPhone}. Úsalo internamente, NUNCA se lo preguntes.
@@ -434,10 +436,10 @@ export const handler: Handler = async (event) => {
         // Relajar el chequeo del teléfono buscando solo los últimos 8 dígitos (por si en la web lo escribieron sin prefijo)
         const phoneSuffix = customer_phone.trim().replace(/\D/g, '').slice(-8);
 
-        const { data, error } = await supabase
-          .from('bookings')
-          .update({ status: 'cancelled' })
-          .in('court_id', courtIds)
+          const { data, error } = await supabase
+            .from('bookings')
+            .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancelled_by: 'cliente' })
+            .in('court_id', courtIds)
           .eq('booking_date', date)
           .eq('start_time', time)
           .ilike('customer_name', `%${customer_name.trim()}%`)
@@ -469,7 +471,7 @@ export const handler: Handler = async (event) => {
           // Primero cancelamos el viejo
           const { data: cancelData, error: errorCancel } = await supabase
             .from('bookings')
-            .update({ status: 'cancelled' })
+            .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancelled_by: 'cliente' })
             .in('court_id', courtIds)
             .eq('booking_date', old_date)
             .eq('start_time', old_time)

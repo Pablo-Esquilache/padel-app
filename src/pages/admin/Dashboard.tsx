@@ -162,7 +162,7 @@ export default function Dashboard() {
 
   const handleCancelBooking = async (bookingId: string) => {
     if (!window.confirm('¿Estás seguro de cancelar este turno?')) return;
-    const { error } = await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', bookingId);
+    const { error } = await supabase.from('bookings').update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancelled_by: 'admin' }).eq('id', bookingId);
     if (!error) {
       const b = bookings.find(x => x.id === bookingId);
       if (b && b.customer_phone) {
