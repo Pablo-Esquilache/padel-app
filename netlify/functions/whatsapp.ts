@@ -330,9 +330,10 @@ export const handler: Handler = async (event) => {
       - Si piden cancelar, PREGUNTA EXPLÍCITAMENTE para qué Día y Hora era su turno. NUNCA asumas, inventes ni adivines el horario.
       - Confirmado todo, emite el código: [CANCELAR|YYYY-MM-DD|HH:MM|Nombre|${fromPhone}]
       
-      8. TICKET DE RESUMEN Y FORMATO DE CÓDIGO (¡IMPORTANTE!)
-      - Cada vez que emitas un código secreto, INCLUYE SIEMPRE ANTES un "Ticket de Resumen" con viñetas detallando los datos de la operación.
-      - EL CÓDIGO SECRETO DEBE IR AL FINAL ABSOLUTO DEL MENSAJE, EN SU PROPIA LÍNEA, Y NO DEBE HABER NADA DE TEXTO DESPUÉS DE ÉL.
+      8. FORMATO DE RESPUESTA FINAL (¡IMPORTANTE!)
+      - Una vez que la operación esté 100% confirmada con el cliente, NO REDACTES NINGÚN TICKET DE RESUMEN NI TEXTO DE DESPEDIDA.
+      - EL CÓDIGO SECRETO DEBE SER LA ÚNICA Y ABSOLUTA RESPUESTA QUE EMITAS EN TU MENSAJE.
+      - El formato debe ser estrictamente, y sin una sola letra más: [OPERACION|...]
       
       9. SEGURIDAD Y ANTI-TROLL
       - Si detectas que el usuario está bromeando, usando lenguaje ofensivo grave, o dando vueltas pidiendo reservar y cancelar sin sentido, CORTA la conversación inmediatamente. Responde únicamente: "He detectado un comportamiento inusual. Para seguir gestionando tus turnos, por favor ingresa a nuestra página web oficial." y NO emitas ningún código.
@@ -390,6 +391,12 @@ export const handler: Handler = async (event) => {
         return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
       };
 
+      const formatDateArgentine = (dateStr: string) => {
+        const [y, m, d] = dateStr.split('-');
+        const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+        return `${parseInt(d, 10)} de ${months[parseInt(m, 10) - 1]} de ${y}`;
+      };
+
       // Bandera para saber si notificamos al admin
       let adminNotificationData: any = null;
 
@@ -423,6 +430,14 @@ export const handler: Handler = async (event) => {
             responseText = "Ese turno se acaba de ocupar. ¿Buscamos otro horario?";
           } else {
             adminNotificationData = { type: 'reservó', name: customer_name.trim(), date: date, time: time };
+            const courtName = courts?.find(c => c.id === court_id)?.name || 'Cancha';
+            responseText = `Turno confirmado:
+
+*   *Día*: ${formatDateArgentine(date)}
+*   *Hora*: ${time.slice(0, 5)}
+*   *Cancha*: ${courtName}
+*   *Nombre*: ${customer_name.trim()}
+*   *Tipo*: ${match_type.trim()}`;
           }
         }
       }
@@ -452,6 +467,12 @@ export const handler: Handler = async (event) => {
            responseText = "Ups, no encontré ningún turno a tu nombre en ese horario para cancelar. Revisa los datos.";
         } else {
            adminNotificationData = { type: 'canceló', name: customer_name.trim(), date: date, time: time };
+           responseText = `Turno cancelado:
+
+*   *Operación*: Cancelación
+*   *Día*: ${formatDateArgentine(date)}
+*   *Hora*: ${time.slice(0, 5)}
+*   *Nombre*: ${customer_name.trim()}`;
         }
       }
       
@@ -496,11 +517,19 @@ export const handler: Handler = async (event) => {
             }]);
             
             if (errorInsert) {
-               console.error('Error DB Modificar Insert (Posible doble booking interceptado):', errorInsert);
-               responseText = "Cancelé tu turno anterior pero el nuevo horario se acaba de ocupar en este milisegundo. Hablemos para buscar otro.";
-            } else {
-               adminNotificationData = { type: 'modificó', name: customer_name.trim(), date: new_date, time: new_time };
-            }
+                 console.error('Error DB Modificar Insert (Posible doble booking interceptado):', errorInsert);
+                 responseText = "Cancelé tu turno anterior pero el nuevo horario se acaba de ocupar en este milisegundo. Hablemos para buscar otro.";
+              } else {
+                 adminNotificationData = { type: 'modificó', name: customer_name.trim(), date: new_date, time: new_time };
+                 const courtName = courts?.find(c => c.id === court_id_nueva)?.name || 'Cancha';
+                 responseText = `Turno modificado:
+
+*   *Día*: ${formatDateArgentine(new_date)}
+*   *Hora*: ${new_time.slice(0, 5)}
+*   *Cancha*: ${courtName}
+*   *Nombre*: ${customer_name.trim()}
+*   *Tipo*: ${match_type.trim()}`;
+              }
           } else {
              console.error('Error DB Modificar Cancel:', errorCancel || '0 filas canceladas');
              responseText = "Ups, no encontré el turno original a tu nombre para modificar. Revisa que el día y horario sean correctos.";
