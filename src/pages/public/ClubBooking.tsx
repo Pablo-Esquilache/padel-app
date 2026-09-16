@@ -490,7 +490,7 @@ export default function ClubBooking() {
       {/* Botón Flotante de WhatsApp */}
       {club?.bot_phone && (
         <a 
-          href={`https://wa.me/${club.bot_phone}?text=Hola,%20quiero%20consultar%20por%20un%20turno`}
+          href={`https://wa.me/${club.bot_phone}`}
           target="_blank" 
           rel="noopener noreferrer"
           className="fixed bottom-6 right-6 bg-[#25D366] text-white p-4 rounded-full shadow-2xl hover:bg-[#128C7E] hover:scale-110 transition-all z-40 flex items-center justify-center"
