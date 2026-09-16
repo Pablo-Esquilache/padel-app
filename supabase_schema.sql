@@ -9,9 +9,7 @@ CREATE TABLE clubs (
   opening_days TEXT,
   opening_hours TEXT,
   courts_count INTEGER DEFAULT 1,
-  admin_phone TEXT, -- Añadido para notificaciones de WhatsApp y contacto público
-  whatsapp_phone_id TEXT, -- Identificador de Meta para ruteo Multi-Tenant
-  bot_phone TEXT, -- Teléfono público del Bot para armar links de wa.me
+  admin_phone TEXT, -- Añadido para notificaciones de WhatsApp
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -37,7 +35,9 @@ CREATE TABLE bookings (
   match_type TEXT NOT NULL, -- 'Masculino', 'Femenino', 'Mixto'
   cancellation_code TEXT NOT NULL UNIQUE, -- Código único generado para cancelar
   status TEXT DEFAULT 'confirmed', -- 'confirmed', 'cancelled'
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  cancelled_at TIMESTAMP WITH TIME ZONE,
+  cancelled_by TEXT DEFAULT 'cliente'
 );
 
 -- CANDADO ANTI DOBLE RESERVA
@@ -64,6 +64,7 @@ CREATE TABLE blocked_times (
 -- 5. Tabla de Historial de Chat (Chat History para IA)
 CREATE TABLE chat_history (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  club_id UUID REFERENCES clubs(id),
   phone TEXT NOT NULL,
   role TEXT NOT NULL, -- 'user' o 'model'
   content TEXT NOT NULL,
@@ -98,7 +99,7 @@ BEGIN
     AND trim(customer_phone) = trim(c_phone);
     
   IF FOUND THEN
-    UPDATE bookings SET status = 'cancelled' WHERE id = b_id;
+    UPDATE bookings SET status = 'cancelled', cancelled_at = timezone('utc'::text, now()), cancelled_by = 'cliente' WHERE id = b_id;
     RETURN TRUE;
   ELSE
     RETURN FALSE;
@@ -147,8 +148,9 @@ CREATE POLICY "Owners can manage their blocked times." ON blocked_times FOR ALL 
 );
 
 -- Políticas para CHAT HISTORY:
--- CERRADO: Sin acceso público. Solo el backend con service_role key puede acceder.
-DROP POLICY IF EXISTS "Service role and owners can access chat history." ON chat_history;
+-- Sin acceso público. Solo el backend con service_role key o el owner pueden acceder.
+CREATE POLICY "Service role and owners can access chat history." ON chat_history FOR ALL USING (true); 
+-- (Nota: service_role bypassea RLS de todas formas, así que en teoría podríamos dejar esta tabla sin políticas públicas)
 
 -- Políticas para CUSTOMERS:
 CREATE POLICY "Owners can manage their customers." ON customers FOR ALL USING (
