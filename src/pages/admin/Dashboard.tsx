@@ -554,7 +554,7 @@ export default function Dashboard() {
                           {slots.length === 0 && <p className="text-sm text-slate-500 text-center">Sin horarios.</p>}
                           
                           {slots.map((slot, idx) => {
-                            const booking = bookings.find(b => b.court_id === court.id && b.booking_date === selectedDate && b.start_time.startsWith(slot.start));
+                            const booking = bookings.find(b => b.court_id === court.id && b.booking_date === selectedDate && b.start_time.startsWith(slot.start) && b.status === 'confirmed');
                             const isPast = new Date(`${selectedDate}T${slot.start}`) < new Date();
 
                             if (slot.isBlocked || isPast) {
