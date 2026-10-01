@@ -200,7 +200,8 @@ export default function ClubBooking() {
       });
 
       // Avisar al admin
-      if (club?.admin_phone) {
+      // [PAUSADO TEMPORALMENTE] Para evitar costos excesivos de Meta (API)
+      if (false && club?.admin_phone) {
         fetch('/.netlify/functions/notify', {
           method: 'POST',
           body: JSON.stringify({

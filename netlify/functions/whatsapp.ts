@@ -573,7 +573,8 @@ export const handler: Handler = async (event) => {
       await sendSafe(fromPhone, responseText);
       
       // 2. Enviar notificación Push al Administrador si hubo movimiento
-      if (adminNotificationData && club?.admin_phone) {
+      // [PAUSADO TEMPORALMENTE] Para evitar costos excesivos de Meta (API)
+      if (false && adminNotificationData && club?.admin_phone) {
         const { type, name, date, time } = adminNotificationData;
         const formattedDate = date.split('-').reverse().join('/');
         
