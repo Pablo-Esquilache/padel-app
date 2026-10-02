@@ -11,7 +11,6 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Claves de Meta
 const META_TOKEN = process.env.META_ACCESS_TOKEN || '';
-const META_PHONE_ID = process.env.META_PHONE_ID || '';
 const META_APP_SECRET = process.env.META_APP_SECRET || '';
 const META_VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || 'padelapp2026';
 
@@ -81,7 +80,7 @@ export const handler: Handler = async (event) => {
       }
 
       const incomingPhoneId = value?.metadata?.phone_number_id; // ID del número receptor en WhatsApp
-      const senderPhoneId = incomingPhoneId || META_PHONE_ID; // Fallback por si acaso
+      const senderPhoneId = incomingPhoneId;
 
       // --- EMPIEZA LA MAGIA DE LA IA ---
 

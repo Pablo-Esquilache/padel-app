@@ -2,7 +2,6 @@ import { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
 
 const META_TOKEN = process.env.META_ACCESS_TOKEN;
-const FALLBACK_SENDER_ID = process.env.META_PHONE_ID;
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
 
@@ -79,7 +78,7 @@ export const handler: Handler = async (event) => {
       finalPhone = bookings[0].customer_phone;
     }
 
-    const actualSenderId = senderPhoneId || FALLBACK_SENDER_ID;
+    const actualSenderId = senderPhoneId;
     
     if (!META_TOKEN || !actualSenderId) {
       console.error('Faltan credenciales de Meta en el entorno');

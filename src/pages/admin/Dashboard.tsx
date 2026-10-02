@@ -22,6 +22,7 @@ export default function Dashboard() {
 
   // States para Formularios
   const [phoneForm, setPhoneForm] = useState('');
+  const [whatsappPhoneIdForm, setWhatsappPhoneIdForm] = useState('');
   
   // States para Agendar Turno (Admin)
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -82,6 +83,7 @@ export default function Dashboard() {
 
       setClub(clubData);
       setPhoneForm(clubData.admin_phone || '');
+      setWhatsappPhoneIdForm(clubData.whatsapp_phone_id || '');
 
       const { data: courtsData } = await supabase.from('courts').select('*').eq('club_id', clubData.id);
       const courtsList = courtsData || [];
@@ -261,7 +263,8 @@ export default function Dashboard() {
       opening_days: club.opening_days,
       opening_hours: club.opening_hours,
       admin_phone: phoneForm,
-      bot_phone: club.bot_phone
+      bot_phone: club.bot_phone,
+      whatsapp_phone_id: whatsappPhoneIdForm
     }).eq('id', club.id);
     if (error) alert('Error al guardar la configuración');
     else alert('Configuración actualizada correctamente.');
@@ -713,6 +716,10 @@ export default function Dashboard() {
                 <div>
                   <label className="block text-sm font-medium mb-1">Teléfono Público del Bot (Para que chateen los clientes)</label>
                   <input type="tel" placeholder="Ej: 5491123456789" className="w-full border rounded-md p-2 focus:border-primary outline-none" value={club.bot_phone || ''} onChange={e => setClub({...club, bot_phone: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-blue-700">WhatsApp Phone ID (Token de Meta API)</label>
+                  <input type="text" placeholder="Ej: 1266121099925217" className="w-full border rounded-md p-2 focus:border-blue-500 outline-none" value={whatsappPhoneIdForm} onChange={e => setWhatsappPhoneIdForm(e.target.value)} />
                 </div>
                 <button type="submit" className="w-full bg-primary text-white py-2 rounded-md font-medium hover:bg-primary-hover">Guardar Cambios Generales</button>
               </form>
