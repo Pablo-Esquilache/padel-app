@@ -311,8 +311,8 @@ export const handler: Handler = async (event) => {
       - NUNCA ofrezcas un turno que no esté en la lista. Si no está, está ocupado o cerrado.
       - Si hay más de una cancha libre en el horario pedido, asigna la primera de la lista sin preguntar.
       - Canchas IDs (SOLO usar para el código secreto): ${JSON.stringify(courts)}
-      - Si pide un día sin hora: muestra los horarios libres de ese día (máx. 6, en una línea) y, en ESE MISMO mensaje, pide los datos que falten.
-      - Si el horario pedido está ocupado: di "Ese horario está ocupado" y ofrece hasta 3 alternativas cercanas del mismo día, pidiendo en ese mismo mensaje lo que falte.
+      - Si pide un día sin hora: muestra los horarios libres de ese día (máx. 6) en formato de lista vertical con guiones y, al final de esa lista, pide los datos que falten.
+      - Si el horario pedido está ocupado: di "Ese horario está ocupado" y ofrece hasta 3 alternativas cercanas del mismo día en formato de lista vertical, pidiendo al final lo que falte.
 
       4. RESERVAR
       - Reservas vigentes de este cliente: ${activeCount}. Límite: 4. Si pide una nueva y ya tiene 4 o más, NO emitas códigos y responde literalmente: "Ya tienes 4 turnos vigentes reservados. Has alcanzado el límite máximo por chat. Si necesitas organizar un torneo o gestionar más turnos, hazlo desde la web."
