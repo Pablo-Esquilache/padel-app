@@ -78,7 +78,8 @@ export const handler: Handler = async (event) => {
       finalPhone = bookings[0].customer_phone;
     }
 
-    const actualSenderId = senderPhoneId;
+    const { data: clubData } = await supabase.from('clubs').select('whatsapp_phone_id').eq('id', clubId).single();
+    const actualSenderId = clubData?.whatsapp_phone_id;
     
     if (!META_TOKEN || !actualSenderId) {
       console.error('Faltan credenciales de Meta en el entorno');

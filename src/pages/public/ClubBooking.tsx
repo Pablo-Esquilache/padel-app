@@ -64,7 +64,7 @@ export default function ClubBooking() {
   }, [selectedDate, courts]);
 
   const loadClubData = async () => {
-    const { data: clubData } = await supabase.from('clubs').select('*').eq('id', id).single();
+    const { data: clubData } = await supabase.from('clubs_public').select('*').eq('id', id).single();
     if (clubData) setClub(clubData);
 
     const { data: courtsData } = await supabase.from('courts').select('*').eq('club_id', id);
@@ -503,3 +503,4 @@ export default function ClubBooking() {
     </>
   );
 }
+

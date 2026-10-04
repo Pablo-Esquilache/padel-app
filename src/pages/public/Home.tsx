@@ -9,7 +9,7 @@ export default function Home() {
 
   useEffect(() => {
     const fetchClubs = async () => {
-      const { data } = await supabase.from('clubs').select('*');
+      const { data } = await supabase.from('clubs_public').select('*');
       setClubs(data || []);
       setLoading(false);
     };
@@ -59,3 +59,4 @@ export default function Home() {
     </div>
   );
 }
+
