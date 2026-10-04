@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import Login from './pages/admin/Login';
-import Register from './pages/admin/Register';
 import Onboarding from './pages/admin/Onboarding';
 import Dashboard from './pages/admin/Dashboard';
 import Home from './pages/public/Home';
@@ -26,8 +25,7 @@ function App() {
 
         {/* Rutas de Administrador - Públicas */}
         <Route path="/admin" element={<Login />} />
-        <Route path="/admin/register" element={<Register />} />
-
+        
         {/* Rutas de Administrador - Privadas */}
         <Route path="/admin/onboarding" element={
           <AdminRoute><Onboarding /></AdminRoute>

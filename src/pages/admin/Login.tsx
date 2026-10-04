@@ -33,9 +33,7 @@ export default function Login() {
       <header className="bg-slate-900 text-white p-4 shadow-md w-full">
         <div className="max-w-4xl mx-auto flex justify-between items-center">
           <h1 className="text-2xl font-bold text-primary">PadelApp - Área Dueños</h1>
-          <Link to="/admin/register" className="bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-md transition-colors font-medium text-sm">
-            Registrar mi club
-          </Link>
+          
         </div>
       </header>
       
@@ -46,7 +44,7 @@ export default function Login() {
             Ingreso al Panel
           </h2>
           <p className="mt-2 text-center text-sm text-slate-600">
-            O <Link to="/admin/register" className="font-medium text-primary hover:text-primary-hover">registra un nuevo complejo</Link>
+            
           </p>
           <div className="mt-4 text-center">
             <Link to="/" className="text-sm font-medium text-slate-500 hover:text-slate-700">

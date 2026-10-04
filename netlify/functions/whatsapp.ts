@@ -7,7 +7,10 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 // Inicializar Supabase usando la Service Role Key para permisos de administrador (bypassea RLS)
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+if (!supabaseUrl || !supabaseKey) {
+  console.error("CRITICAL ERROR: Supabase credentials missing");
+}
+const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
 // Claves de Meta
 const META_TOKEN = process.env.META_ACCESS_TOKEN || '';
@@ -15,6 +18,10 @@ const META_APP_SECRET = process.env.META_APP_SECRET || '';
 const META_VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || 'padelapp2026';
 
 export const handler: Handler = async (event) => {
+  if (!supabase) {
+    console.error('API rechazada: Falta configurar VITE_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en Netlify.');
+    return { statusCode: 500, body: 'Server configuration error' };
+  }
   // 1. Verificación del Webhook de Meta (Petición GET)
   if (event.httpMethod === 'GET') {
     const params = event.queryStringParameters || {};
@@ -74,6 +81,16 @@ export const handler: Handler = async (event) => {
       const message = messages[0];
       const fromPhone = message.from; // Número del cliente
       const messageText = message.text?.body || '';
+      const messageId = message.id;
+
+      // Evitar procesar mensajes duplicados de Meta
+      if (messageId) {
+        const { error: dupError } = await supabase.from('processed_messages').insert([{ wamid: messageId }]);
+        if (dupError && dupError.code === '23505') { // unique violation
+          console.log('Mensaje ignorado (ya procesado):', messageId);
+          return { statusCode: 200, body: 'ALREADY_PROCESSED' };
+        }
+      }
 
       if (!messageText) {
         return { statusCode: 200, body: 'EVENT_RECEIVED' };
@@ -340,7 +357,7 @@ export const handler: Handler = async (event) => {
       - Con todo definido, emite al instante: [MODIFICAR|id_de_cancha_nueva|fecha_vieja|hora_vieja|fecha_nueva|hora_nueva|Nombre|Tipo|${fromPhone}]
 
       7. CANCELAR
-      - Si el cliente dio día y hora, o tiene un único turno vigente: emite el código al instante.
+      - Si el cliente pide cancelar, SIEMPRE preg�ntale expl�citamente "�Est�s seguro que quer�s cancelar el turno del [Fecha] a las [Hora]?" (en un solo mensaje). Nunca emitas el c�digo al instante. S�lo em�telo si el cliente confirma con un "S�".
       - Si tiene varios y no especificó, muéstrale la lista y pregunta cuál, en un solo mensaje.
       - Nombre se toma de la lista de la sección 5.
       - Código: [CANCELAR|YYYY-MM-DD|HH:MM|Nombre|${fromPhone}]

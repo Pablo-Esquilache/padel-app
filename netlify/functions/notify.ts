@@ -5,11 +5,18 @@ const META_TOKEN = process.env.META_ACCESS_TOKEN;
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+if (!supabaseUrl || !supabaseKey) {
+  console.error("CRITICAL ERROR: Supabase credentials missing");
+}
+const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
 const ALLOWED_TEMPLATES = ['aviso_cliente', 'aviso_admin'];
 
 export const handler: Handler = async (event) => {
+  if (!supabase) {
+    console.error('API rechazada: Falta configurar VITE_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en Netlify.');
+    return { statusCode: 500, body: 'Server configuration error' };
+  }
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
