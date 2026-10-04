@@ -134,7 +134,7 @@ export const handler: Handler = async (event) => {
       const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
       const pSuffix = fromPhone.replace(/\D/g, '').slice(-8);
 
-      const { data: courts } = await supabase.from('courts').select('id, name').eq('club_id', club.id);
+      const { data: courts } = await supabase.from('courts').select('id, name').eq('club_id', club.id).neq('is_active', false);
       const courtIds = courts?.map((c: any) => c.id) || [];
 
       let activeCount = 0;
@@ -390,7 +390,10 @@ export const handler: Handler = async (event) => {
       // D. Leer si la IA decidió hacer una reserva
       const reserveMatch = responseText.match(/\[RESERVAR\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
       if (reserveMatch) {
-        const [_, court_id, date, time, customer_name, match_type, customer_phone] = reserveMatch;
+        const [_, court_id, date, time, customer_name_raw, match_type_raw, _ignored_phone] = reserveMatch;
+          const customer_phone = fromPhone;
+          const customer_name = customer_name_raw.replace(/[^a-zA-Z�-�0-9 .'-]/g, ' ').trim().slice(0, 60);
+          const match_type = ['Masculino', 'Femenino', 'Mixto'].includes(match_type_raw.trim()) ? match_type_raw.trim() : 'Mixto';
         responseText = cleanedResponseText; // Ocultar código
         
         // Validación de seguridad (Server-side): ¿La IA alucinó una cancha que no existe?
@@ -432,7 +435,8 @@ export const handler: Handler = async (event) => {
       // E. Leer si la IA decidió CANCELAR un turno
       const cancelMatch = responseText.match(/\[CANCELAR\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
       if (cancelMatch) {
-        const [_, date, time, customer_name, customer_phone] = cancelMatch;
+        const [_, date, time, customer_name, _ignored_phone] = cancelMatch;
+          const customer_phone = fromPhone;
         responseText = cleanedResponseText;
         
         // Relajar el chequeo del teléfono buscando solo los últimos 8 dígitos (por si en la web lo escribieron sin prefijo)
