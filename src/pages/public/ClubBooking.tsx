@@ -222,8 +222,7 @@ export default function ClubBooking() {
     setLoading(true);
     try {
       // Generamos un código al azar para que la base de datos no tire error 409 por el UNIQUE constraint
-      const dummyCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-
+      
       const { error } = await supabase.rpc('create_booking', { p_court: selectedCourt.id, p_date: selectedDate, p_start: selectedSlot.start, p_name: formData.name.trim(), p_phone: formData.phone.trim(), p_type: formData.matchType });
       
       if (error) {
