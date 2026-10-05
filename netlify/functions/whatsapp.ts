@@ -151,7 +151,7 @@ export const handler: Handler = async (event) => {
       const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
       const pSuffix = fromPhone.replace(/\D/g, '').slice(-8);
 
-      const { data: courts } = await supabase.from('courts').select('id, name').eq('club_id', club.id).neq('is_active', false);
+      const { data: courts } = await supabase.from('courts').select('id, name').eq('club_id', club.id).or('is_active.eq.true,is_active.is.null');
       const courtIds = courts?.map((c: any) => c.id) || [];
 
       let activeCount = 0;
