@@ -102,7 +102,7 @@ export const handler: Handler = async (event) => {
       // --- EMPIEZA LA MAGIA DE LA IA ---
 
       // A. Multi-Tenant: Identificar de qué club es este bot
-      const { data: clubMatches } = await supabase.from('clubs').select('id, name, opening_hours, admin_phone, whatsapp_phone_id');
+      const { data: clubMatches } = await supabase.from('clubs').select('id, name, opening_days, opening_hours, admin_phone, whatsapp_phone_id');
       
       let club = null;
       if (clubMatches && clubMatches.length === 1) {
@@ -247,10 +247,16 @@ export const handler: Handler = async (event) => {
         const targetDateObj = new Date(nowArg.getTime() + i * 24 * 3600 * 1000);
         const targetDate = targetDateObj.toISOString().split('T')[0];
         const dayOfWeek = targetDateObj.getUTCDay(); // 0 is Sunday, 1 is Monday
-        
-        availableSlotsText += `\n[ FECHA: ${targetDate} ]\n`;
-        
-        for (const court of (courts || [])) {
+          
+          const isOpen = (club?.opening_days || '1,2,3,4,5,6').includes(dayOfWeek.toString());
+          availableSlotsText += `\n[ FECHA: ${targetDate} ]\n`;
+          
+          if (!isOpen) {
+             availableSlotsText += "* CERRADO\n";
+             continue;
+          }
+          
+          for (const court of (courts || [])) {
           let courtSlots = [];
           const blocks = (blockedTimes || []).filter(b => b.court_id === court.id && b.day_of_week === dayOfWeek);
           const courtBookings = (bookings || []).filter(b => b.court_id === court.id && b.booking_date === targetDate);
@@ -325,7 +331,8 @@ export const handler: Handler = async (event) => {
 
       ${availableSlotsText}
 
-      - NUNCA ofrezcas un turno que no esté en la lista. Si no está, está ocupado o cerrado.
+      - NUNCA ofrezcas un turno que no est� en la lista.
+        - Si el cliente pide un d�a y en la lista ese d�a dice "* CERRADO", dile simplemente que el club se encuentra cerrado ese d�a. NO ofrezcas otros d�as ni alternativas.
       - Si hay m�s de una cancha libre en el horario pedido, asigna la primera de la lista sin preguntar. NUNCA le digas al cliente el n�mero o nombre de la cancha al ofrecer turnos, solo ofr�cele la hora.
       - Canchas IDs (SOLO usar para el código secreto): ${JSON.stringify(courts)}
       - Si pide un d�a sin hora: muestra TODOS los horarios libres de ese d�a en formato de lista vertical con guiones y, al final de esa lista, pide los datos que falten.
