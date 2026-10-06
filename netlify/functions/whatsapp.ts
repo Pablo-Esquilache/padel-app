@@ -326,9 +326,9 @@ export const handler: Handler = async (event) => {
       ${availableSlotsText}
 
       - NUNCA ofrezcas un turno que no esté en la lista. Si no está, está ocupado o cerrado.
-      - Si hay más de una cancha libre en el horario pedido, asigna la primera de la lista sin preguntar.
+      - Si hay m�s de una cancha libre en el horario pedido, asigna la primera de la lista sin preguntar. NUNCA le digas al cliente el n�mero o nombre de la cancha al ofrecer turnos, solo ofr�cele la hora.
       - Canchas IDs (SOLO usar para el código secreto): ${JSON.stringify(courts)}
-      - Si pide un día sin hora: muestra los horarios libres de ese día (máx. 6) en formato de lista vertical con guiones y, al final de esa lista, pide los datos que falten.
+      - Si pide un d�a sin hora: muestra TODOS los horarios libres de ese d�a en formato de lista vertical con guiones y, al final de esa lista, pide los datos que falten.
       - Si el horario pedido está ocupado: di "Ese horario está ocupado" y ofrece hasta 3 alternativas cercanas del mismo día en formato de lista vertical, pidiendo al final lo que falte.
 
       4. RESERVAR
